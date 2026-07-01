@@ -181,12 +181,40 @@ void testFetch() {
     printf("[PASS] Fetch test passed\n");
 }
 
+void testSequentialPC() {
+    CPU cpu;
+
+    // Three fake 16-bit instructions in consecutive memory locations
+    cpu.getMemory().write16(0x0020, 0x1111);
+    cpu.getMemory().write16(0x0022, 0x2222);
+    cpu.getMemory().write16(0x0024, 0x3333);
+
+    // First step
+    assert(cpu.getPC() == 0x0020);
+    assert(cpu.step() == 0x1111);
+    assert(cpu.getLastInstruction() == 0x1111);
+    assert(cpu.getPC() == 0x0022);
+
+    // Second step
+    assert(cpu.step() == 0x2222);
+    assert(cpu.getLastInstruction() == 0x2222);
+    assert(cpu.getPC() == 0x0024);
+
+    // Third step
+    assert(cpu.step() == 0x3333);
+    assert(cpu.getLastInstruction() == 0x3333);
+    assert(cpu.getPC() == 0x0026);
+
+    printf("[PASS] Sequential PC test passed\n");
+}
+
 int main() {
     testMemory();
     testRegisterFile();
     testCPUReset();
     testProgramLoader();
     testFetch();
+    testSequentialPC();
 
     InitWindow(320, 240, "ZX16 Simulator");
     SetTargetFPS(60);
@@ -196,12 +224,13 @@ int main() {
 
         ClearBackground(BLACK);
 
-        DrawText("ZX16 Simulator", 90, 35, 20, RAYWHITE);
-        DrawText("Memory read/write test: PASSED", 45, 75, 16, GREEN);
-        DrawText("Register file test: PASSED", 55, 100, 16, GREEN);
-        DrawText("CPU reset test: PASSED", 70, 125, 16, GREEN);
-        DrawText("Program loader test: PASSED", 55, 150, 16, GREEN);
-        DrawText("Fetch test: PASSED", 90, 175, 16, GREEN);
+        DrawText("ZX16 Simulator", 90, 25, 20, RAYWHITE);
+        DrawText("Memory read/write test: PASSED", 45, 60, 16, GREEN);
+        DrawText("Register file test: PASSED", 55, 85, 16, GREEN);
+        DrawText("CPU reset test: PASSED", 70, 110, 16, GREEN);
+        DrawText("Program loader test: PASSED", 55, 135, 16, GREEN);
+        DrawText("Fetch test: PASSED", 90, 160, 16, GREEN);
+        DrawText("Sequential PC test: PASSED", 65, 185, 16, GREEN);
 
         EndDrawing();
     }

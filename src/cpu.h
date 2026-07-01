@@ -22,6 +22,12 @@ public:
     // Read 16-bit instruction from memory at PC, then move PC by 2
     unsigned short fetch();
 
+    // Execute one simple sequential CPU step for now
+    unsigned short step();
+
+    // Read last fetched instruction
+    unsigned short getLastInstruction();
+
     // Access CPU memory and registers without pointers
     Memory& getMemory();
     RegisterFile& getRegisters();
@@ -31,6 +37,7 @@ private:
     RegisterFile registers;     // 8 registers x0..x7
 
     unsigned short pc;          // Program counter
+    unsigned short lastInstruction; // Last instruction fetched by CPU
 };
 
 #endif

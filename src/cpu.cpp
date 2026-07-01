@@ -10,6 +10,8 @@ void CPU::reset() {
 
     pc = 0x0020;                // Program starts at 0x0020
     registers.setRegister(2, 0xEFFE); // x2 is stack pointer
+
+    lastInstruction = 0x0000;   // No instruction fetched yet
 }
 
 unsigned short CPU::getPC() {
@@ -34,6 +36,16 @@ unsigned short CPU::fetch() {
     pc = pc + 2;                                    // 16-bit instruction = 2 bytes
 
     return instruction;
+}
+
+unsigned short CPU::step() {
+    lastInstruction = fetch();       // Sequential execution for now
+
+    return lastInstruction;
+}
+
+unsigned short CPU::getLastInstruction() {
+    return lastInstruction;
 }
 
 Memory& CPU::getMemory() {
