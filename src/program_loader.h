@@ -1,20 +1,15 @@
-#pragma once
-#include <fstream>
-#include <vector>
-#include <stdexcept>
-#include "system_memory.h"
-//reads .bin files from disk and hands them to load_program().
+#ifndef PROGRAM_LOADER_H
+#define PROGRAM_LOADER_H
+
+#include "memory.h"
+
 class ProgramLoader {
 public:
-    static void load_file(const std::string& path, Memory& mem) {
-        std::ifstream f(path, std::ios::binary);
-        if (!f) throw std::runtime_error("cannot open file: " + path);
+    static const int LOAD_ADDRESS = 0x0020;
 
-        std::vector<uint8_t> bytes(
-            (std::istreambuf_iterator<char>(f)),
-            std::istreambuf_iterator<char>()//reads entire file content into a string
-        );
-
-        mem.load_program(bytes);   //sends bytes to memory.
-    }
+    // Load .bin file into RAM starting at 0x0020
+    // Returns number of bytes loaded, or -1 if file failed to open
+    static int loadBin(Memory& memory, const char filename[]);
 };
+
+#endif

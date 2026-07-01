@@ -2,6 +2,7 @@
 #include "memory.h"
 #include "register_file.h"
 #include "cpu.h"
+#include "program_loader.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -67,6 +68,7 @@ void testRegisterFile() {
     assert(registers.getRegister(6) == 0x7777);
     assert(registers.getRegister(7) == 0x8888);
 
+    // x0 is normal in ZX16, not hardwired to zero
     registers.setRegister(0, 0xABCD);
     assert(registers.getRegister(0) == 0xABCD);
 
@@ -104,10 +106,57 @@ void testCPUReset() {
     printf("[PASS] CPU reset test passed\n");
 }
 
+void createLoaderTestFile(const char filename[]) {
+    FILE* file = fopen(filename, "wb");
+
+    assert(file != 0);
+
+    // Fake .bin bytes for testing
+    unsigned char data[6] = {
+        0x12, 0x34, 0xAB, 0xCD, 0x00, 0xFF
+    };
+
+    for (int i = 0; i < 6; i++) {
+        fputc(data[i], file);
+    }
+
+    fclose(file);
+}
+
+void testProgramLoader() {
+    Memory memory;
+
+    const char filename[] = "loader_test.bin";
+
+    unsigned char expected[6] = {
+        0x12, 0x34, 0xAB, 0xCD, 0x00, 0xFF
+    };
+
+    createLoaderTestFile(filename);
+
+    int bytesLoaded = ProgramLoader::loadBin(memory, filename);
+
+    assert(bytesLoaded == 6);
+
+    // Program must be loaded starting at 0x0020
+    for (int i = 0; i < 6; i++) {
+        assert(memory.read8(0x0020 + i) == expected[i]);
+    }
+
+    // Make sure bytes before and after were not changed
+    assert(memory.read8(0x001F) == 0x00);
+    assert(memory.read8(0x0026) == 0x00);
+
+    remove(filename);
+
+    printf("[PASS] Program loader test passed\n");
+}
+
 int main() {
     testMemory();
     testRegisterFile();
     testCPUReset();
+    testProgramLoader();
 
     InitWindow(320, 240, "ZX16 Simulator");
     SetTargetFPS(60);
@@ -117,10 +166,11 @@ int main() {
 
         ClearBackground(BLACK);
 
-        DrawText("ZX16 Simulator", 90, 65, 20, RAYWHITE);
-        DrawText("Memory read/write test: PASSED", 45, 105, 16, GREEN);
-        DrawText("Register file test: PASSED", 55, 130, 16, GREEN);
-        DrawText("CPU reset test: PASSED", 70, 155, 16, GREEN);
+        DrawText("ZX16 Simulator", 90, 50, 20, RAYWHITE);
+        DrawText("Memory read/write test: PASSED", 45, 90, 16, GREEN);
+        DrawText("Register file test: PASSED", 55, 115, 16, GREEN);
+        DrawText("CPU reset test: PASSED", 70, 140, 16, GREEN);
+        DrawText("Program loader test: PASSED", 55, 165, 16, GREEN);
 
         EndDrawing();
     }
