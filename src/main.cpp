@@ -209,65 +209,101 @@ void testSequentialPC() {
     printf("[PASS] Sequential PC test passed\n");
 }
 
-void testInstructionDecoder() {
+void testInstructionFields() {
     InstructionDecoder decoder;
     DecodedInstruction decoded;
 
-    // Opcode 000 -> R-Type
-    decoded = decoder.decode(0x0000);
-    assert(decoded.word == 0x0000);
+    unsigned short word;
+
+    // R-Type: funct4=10, rs2=5, rd/rs1=3, func3=2, opcode=0
+    word = (10 << 12) | (5 << 9) | (3 << 6) | (2 << 3) | 0;
+    decoded = decoder.decode(word);
+
+    assert(decoded.word == word);
     assert(decoded.opcode == 0);
     assert(decoded.format == ZX16::R_TYPE);
+    assert(decoded.funct4 == 10);
+    assert(decoded.func3 == 2);
+    assert(decoded.rd == 3);
+    assert(decoded.rs1 == 3);
+    assert(decoded.rs2 == 5);
 
-    // Opcode 001 -> I-Type
-    decoded = decoder.decode(0x0001);
-    assert(decoded.word == 0x0001);
+    // I-Type: rd=4, immediate=-1
+    word = (0x7F << 9) | (4 << 6) | (0 << 3) | 1;
+    decoded = decoder.decode(word);
+
     assert(decoded.opcode == 1);
     assert(decoded.format == ZX16::I_TYPE);
+    assert(decoded.rd == 4);
+    assert(decoded.immediate == -1);
 
-    // Opcode 010 -> B-Type
-    decoded = decoder.decode(0x0002);
-    assert(decoded.word == 0x0002);
+    // B-Type: rs1=1, rs2=2, immediate=+14
+    word = (7 << 12) | (2 << 9) | (1 << 6) | (0 << 3) | 2;
+    decoded = decoder.decode(word);
+
     assert(decoded.opcode == 2);
     assert(decoded.format == ZX16::B_TYPE);
+    assert(decoded.rs1 == 1);
+    assert(decoded.rs2 == 2);
+    assert(decoded.immediate == 14);
 
-    // Opcode 011 -> S-Type
-    decoded = decoder.decode(0x0003);
-    assert(decoded.word == 0x0003);
+    // B-Type negative immediate: immediate=-16
+    word = (8 << 12) | (2 << 9) | (1 << 6) | (0 << 3) | 2;
+    decoded = decoder.decode(word);
+
+    assert(decoded.format == ZX16::B_TYPE);
+    assert(decoded.immediate == -16);
+
+    // S-Type: rs1=4, rs2=3, immediate=-8
+    word = (8 << 12) | (3 << 9) | (4 << 6) | (0 << 3) | 3;
+    decoded = decoder.decode(word);
+
     assert(decoded.opcode == 3);
     assert(decoded.format == ZX16::S_TYPE);
+    assert(decoded.rs1 == 4);
+    assert(decoded.rs2 == 3);
+    assert(decoded.immediate == -8);
 
-    // Opcode 100 -> L-Type
-    decoded = decoder.decode(0x0004);
-    assert(decoded.word == 0x0004);
+    // L-Type: rd=6, base rs1=5, immediate=+7
+    word = (7 << 12) | (5 << 9) | (6 << 6) | (1 << 3) | 4;
+    decoded = decoder.decode(word);
+
     assert(decoded.opcode == 4);
     assert(decoded.format == ZX16::L_TYPE);
+    assert(decoded.rd == 6);
+    assert(decoded.rs1 == 5);
+    assert(decoded.immediate == 7);
 
-    // Opcode 101 -> J-Type
-    decoded = decoder.decode(0x0005);
-    assert(decoded.word == 0x0005);
+    // J-Type: link=1, rd=1, immediate=-512
+    word = (1 << 15) | (32 << 9) | (1 << 6) | (0 << 3) | 5;
+    decoded = decoder.decode(word);
+
     assert(decoded.opcode == 5);
     assert(decoded.format == ZX16::J_TYPE);
+    assert(decoded.linkFlag == 1);
+    assert(decoded.rd == 1);
+    assert(decoded.immediate == -512);
 
-    // Opcode 110 -> U-Type
-    decoded = decoder.decode(0x0006);
-    assert(decoded.word == 0x0006);
+    // U-Type: flag=1, rd=2, imm9=0x12A, immediate=0x12A << 7
+    word = (1 << 15) | (37 << 9) | (2 << 6) | (2 << 3) | 6;
+    decoded = decoder.decode(word);
+
     assert(decoded.opcode == 6);
     assert(decoded.format == ZX16::U_TYPE);
+    assert(decoded.upperFlag == 1);
+    assert(decoded.rd == 2);
+    assert(decoded.immediate == 0x9500);
 
-    // Opcode 111 -> SYS-Type
-    decoded = decoder.decode(0x0007);
-    assert(decoded.word == 0x0007);
+    // SYS-Type: service=0x3FF
+    word = (0x3FF << 6) | 7;
+    decoded = decoder.decode(word);
+
     assert(decoded.opcode == 7);
     assert(decoded.format == ZX16::SYS_TYPE);
+    assert(decoded.service == 0x3FF);
+    assert(decoded.immediate == 0x3FF);
 
-    // Check opcode extraction from a bigger machine code
-    decoded = decoder.decode(0xABCD);
-    assert(decoded.word == 0xABCD);
-    assert(decoded.opcode == 5);
-    assert(decoded.format == ZX16::J_TYPE);
-
-    printf("[PASS] Instruction decoder test passed\n");
+    printf("[PASS] Instruction fields test passed\n");
 }
 
 int main() {
@@ -277,7 +313,7 @@ int main() {
     testProgramLoader();
     testFetch();
     testSequentialPC();
-    testInstructionDecoder();
+    testInstructionFields();
 
     InitWindow(320, 240, "ZX16 Simulator");
     SetTargetFPS(60);
@@ -294,7 +330,7 @@ int main() {
         DrawText("Program loader test: PASSED", 55, 120, 16, GREEN);
         DrawText("Fetch test: PASSED", 90, 145, 16, GREEN);
         DrawText("Sequential PC test: PASSED", 65, 170, 16, GREEN);
-        DrawText("Instruction decoder test: PASSED", 45, 195, 16, GREEN);
+        DrawText("Instruction fields test: PASSED", 45, 195, 16, GREEN);
 
         EndDrawing();
     }
