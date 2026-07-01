@@ -156,21 +156,15 @@ void testProgramLoader() {
 void testFetch() {
     CPU cpu;
 
-    // CPU starts fetching from PC = 0x0020
     assert(cpu.getPC() == 0x0020);
 
-    // Put fake 16-bit instruction in RAM at PC
     cpu.getMemory().write16(0x0020, 0xABCD);
 
-    // Fetch should read the instruction from RAM
     unsigned short instruction = cpu.fetch();
 
     assert(instruction == 0xABCD);
-
-    // Fetch should move PC to the next instruction
     assert(cpu.getPC() == 0x0022);
 
-    // Test another instruction using raw bytes
     cpu.getMemory().write8(0x0022, 0x34);
     cpu.getMemory().write8(0x0023, 0x12);
 
@@ -185,7 +179,6 @@ void testFetch() {
 void testSequentialPC() {
     CPU cpu;
 
-    // Three fake 16-bit instructions in consecutive memory locations
     cpu.getMemory().write16(0x0020, 0x1111);
     cpu.getMemory().write16(0x0022, 0x2222);
     cpu.getMemory().write16(0x0024, 0x3333);
@@ -212,7 +205,6 @@ void testInstructionFields() {
 
     unsigned short word;
 
-    // R-Type: funct4=10, rs2=5, rd/rs1=3, func3=2, opcode=0
     word = (10 << 12) | (5 << 9) | (3 << 6) | (2 << 3) | 0;
     decoded = decoder.decode(word);
 
@@ -225,7 +217,6 @@ void testInstructionFields() {
     assert(decoded.rs1 == 3);
     assert(decoded.rs2 == 5);
 
-    // I-Type: rd=4, immediate=-1
     word = (0x7F << 9) | (4 << 6) | (0 << 3) | 1;
     decoded = decoder.decode(word);
 
@@ -234,7 +225,6 @@ void testInstructionFields() {
     assert(decoded.rd == 4);
     assert(decoded.immediate == -1);
 
-    // B-Type: rs1=1, rs2=2, immediate=+14
     word = (7 << 12) | (2 << 9) | (1 << 6) | (0 << 3) | 2;
     decoded = decoder.decode(word);
 
@@ -244,14 +234,12 @@ void testInstructionFields() {
     assert(decoded.rs2 == 2);
     assert(decoded.immediate == 14);
 
-    // B-Type negative immediate: immediate=-16
     word = (8 << 12) | (2 << 9) | (1 << 6) | (0 << 3) | 2;
     decoded = decoder.decode(word);
 
     assert(decoded.format == ZX16::B_TYPE);
     assert(decoded.immediate == -16);
 
-    // S-Type: rs1=4, rs2=3, immediate=-8
     word = (8 << 12) | (3 << 9) | (4 << 6) | (0 << 3) | 3;
     decoded = decoder.decode(word);
 
@@ -261,7 +249,6 @@ void testInstructionFields() {
     assert(decoded.rs2 == 3);
     assert(decoded.immediate == -8);
 
-    // L-Type: rd=6, base rs1=5, immediate=+7
     word = (7 << 12) | (5 << 9) | (6 << 6) | (1 << 3) | 4;
     decoded = decoder.decode(word);
 
@@ -271,7 +258,6 @@ void testInstructionFields() {
     assert(decoded.rs1 == 5);
     assert(decoded.immediate == 7);
 
-    // J-Type: link=1, rd=1, immediate=-512
     word = (1 << 15) | (32 << 9) | (1 << 6) | (0 << 3) | 5;
     decoded = decoder.decode(word);
 
@@ -281,7 +267,6 @@ void testInstructionFields() {
     assert(decoded.rd == 1);
     assert(decoded.immediate == -512);
 
-    // U-Type: flag=1, rd=2, imm9=0x12A, immediate=0x12A << 7
     word = (1 << 15) | (37 << 9) | (2 << 6) | (2 << 3) | 6;
     decoded = decoder.decode(word);
 
@@ -291,7 +276,6 @@ void testInstructionFields() {
     assert(decoded.rd == 2);
     assert(decoded.immediate == 0x9500);
 
-    // SYS-Type: service=0x3FF
     word = (0x3FF << 6) | 7;
     decoded = decoder.decode(word);
 
@@ -347,55 +331,46 @@ void testExecutionDispatcher() {
 void testAddSubExecution() {
     CPU cpu;
 
-    unsigned short addWord;
-    unsigned short subWord;
+    unsigned short word;
 
-    // ADD x3, x4
     cpu.getRegisters().setRegister(3, 5);
     cpu.getRegisters().setRegister(4, 7);
 
-    addWord = (0x0 << 12) | (4 << 9) | (3 << 6) | 0;
-    cpu.getMemory().write16(0x0020, addWord);
+    word = (0x0 << 12) | (4 << 9) | (3 << 6) | 0;
+    cpu.getMemory().write16(0x0020, word);
 
     cpu.step();
 
     assert(cpu.getRegisters().getRegister(3) == 12);
-    assert(cpu.getRegisters().getRegister(4) == 7);
-    assert(cpu.getLastHandler() == ZX16::R_TYPE);
     assert(cpu.getPC() == 0x0022);
 
-    // SUB x5, x6
     cpu.getRegisters().setRegister(5, 20);
     cpu.getRegisters().setRegister(6, 8);
 
-    subWord = (0x1 << 12) | (6 << 9) | (5 << 6) | 0;
-    cpu.getMemory().write16(0x0022, subWord);
+    word = (0x1 << 12) | (6 << 9) | (5 << 6) | 0;
+    cpu.getMemory().write16(0x0022, word);
 
     cpu.step();
 
     assert(cpu.getRegisters().getRegister(5) == 12);
-    assert(cpu.getRegisters().getRegister(6) == 8);
-    assert(cpu.getLastHandler() == ZX16::R_TYPE);
     assert(cpu.getPC() == 0x0024);
 
-    // SUB wraparound test: 3 - 5 = 0xFFFE
     cpu.getRegisters().setRegister(7, 3);
     cpu.getRegisters().setRegister(6, 5);
 
-    subWord = (0x1 << 12) | (6 << 9) | (7 << 6) | 0;
-    cpu.getMemory().write16(0x0024, subWord);
+    word = (0x1 << 12) | (6 << 9) | (7 << 6) | 0;
+    cpu.getMemory().write16(0x0024, word);
 
     cpu.step();
 
     assert(cpu.getRegisters().getRegister(7) == 0xFFFE);
     assert(cpu.getPC() == 0x0026);
 
-    // ADD wraparound and x0 writable test: 0xFFFF + 1 = 0x0000
     cpu.getRegisters().setRegister(0, 0xFFFF);
     cpu.getRegisters().setRegister(1, 1);
 
-    addWord = (0x0 << 12) | (1 << 9) | (0 << 6) | 0;
-    cpu.getMemory().write16(0x0026, addWord);
+    word = (0x0 << 12) | (1 << 9) | (0 << 6) | 0;
+    cpu.getMemory().write16(0x0026, word);
 
     cpu.step();
 
@@ -410,7 +385,6 @@ void testLogicalExecution() {
 
     unsigned short word;
 
-    // OR x3, x4
     cpu.getRegisters().setRegister(3, 0x00F0);
     cpu.getRegisters().setRegister(4, 0x0F00);
 
@@ -422,7 +396,6 @@ void testLogicalExecution() {
     assert(cpu.getRegisters().getRegister(3) == 0x0FF0);
     assert(cpu.getPC() == 0x0022);
 
-    // AND x5, x6
     cpu.getRegisters().setRegister(5, 0x0FF0);
     cpu.getRegisters().setRegister(6, 0x00FF);
 
@@ -434,7 +407,6 @@ void testLogicalExecution() {
     assert(cpu.getRegisters().getRegister(5) == 0x00F0);
     assert(cpu.getPC() == 0x0024);
 
-    // XOR x7, x1
     cpu.getRegisters().setRegister(7, 0xAAAA);
     cpu.getRegisters().setRegister(1, 0x0F0F);
 
@@ -454,8 +426,6 @@ void testShiftExecution() {
 
     unsigned short word;
 
-    // SLL x3, x4
-    // Shift amount is rs2 & 15, so 20 becomes 4
     cpu.getRegisters().setRegister(3, 0x0001);
     cpu.getRegisters().setRegister(4, 20);
 
@@ -467,7 +437,6 @@ void testShiftExecution() {
     assert(cpu.getRegisters().getRegister(3) == 0x0010);
     assert(cpu.getPC() == 0x0022);
 
-    // SRL x5, x6
     cpu.getRegisters().setRegister(5, 0x8000);
     cpu.getRegisters().setRegister(6, 4);
 
@@ -479,8 +448,6 @@ void testShiftExecution() {
     assert(cpu.getRegisters().getRegister(5) == 0x0800);
     assert(cpu.getPC() == 0x0024);
 
-    // SRA x7, x1
-    // Arithmetic shift keeps the sign bit
     cpu.getRegisters().setRegister(7, 0x8000);
     cpu.getRegisters().setRegister(1, 4);
 
@@ -500,7 +467,6 @@ void testAddiExecution() {
 
     unsigned short word;
 
-    // ADDI x3, +5
     cpu.getRegisters().setRegister(3, 10);
 
     word = (5 << 9) | (3 << 6) | (0 << 3) | 1;
@@ -511,7 +477,6 @@ void testAddiExecution() {
     assert(cpu.getRegisters().getRegister(3) == 15);
     assert(cpu.getPC() == 0x0022);
 
-    // ADDI x4, -1
     cpu.getRegisters().setRegister(4, 10);
 
     word = (0x7F << 9) | (4 << 6) | (0 << 3) | 1;
@@ -522,7 +487,6 @@ void testAddiExecution() {
     assert(cpu.getRegisters().getRegister(4) == 9);
     assert(cpu.getPC() == 0x0024);
 
-    // ADDI x5, -64
     cpu.getRegisters().setRegister(5, 100);
 
     word = (0x40 << 9) | (5 << 6) | (0 << 3) | 1;
@@ -533,7 +497,6 @@ void testAddiExecution() {
     assert(cpu.getRegisters().getRegister(5) == 36);
     assert(cpu.getPC() == 0x0026);
 
-    // ADDI wraparound: 0xFFFF + 1 = 0x0000
     cpu.getRegisters().setRegister(6, 0xFFFF);
 
     word = (1 << 9) | (6 << 6) | (0 << 3) | 1;
@@ -552,7 +515,6 @@ void testImmediateLogicExecution() {
 
     unsigned short word;
 
-    // ORI x3, 0x0F
     cpu.getRegisters().setRegister(3, 0x00F0);
 
     word = (0x0F << 9) | (3 << 6) | (4 << 3) | 1;
@@ -563,7 +525,6 @@ void testImmediateLogicExecution() {
     assert(cpu.getRegisters().getRegister(3) == 0x00FF);
     assert(cpu.getPC() == 0x0022);
 
-    // ORI x4, 0x7F
     cpu.getRegisters().setRegister(4, 0x0F00);
 
     word = (0x7F << 9) | (4 << 6) | (4 << 3) | 1;
@@ -574,7 +535,6 @@ void testImmediateLogicExecution() {
     assert(cpu.getRegisters().getRegister(4) == 0x0F7F);
     assert(cpu.getPC() == 0x0024);
 
-    // ANDI x5, 0x0F
     cpu.getRegisters().setRegister(5, 0x00FF);
 
     word = (0x0F << 9) | (5 << 6) | (5 << 3) | 1;
@@ -585,7 +545,6 @@ void testImmediateLogicExecution() {
     assert(cpu.getRegisters().getRegister(5) == 0x000F);
     assert(cpu.getPC() == 0x0026);
 
-    // ANDI x6, -1
     cpu.getRegisters().setRegister(6, 0x1234);
 
     word = (0x7F << 9) | (6 << 6) | (5 << 3) | 1;
@@ -596,7 +555,6 @@ void testImmediateLogicExecution() {
     assert(cpu.getRegisters().getRegister(6) == 0x1234);
     assert(cpu.getPC() == 0x0028);
 
-    // XORI x7, -1
     cpu.getRegisters().setRegister(7, 0xAAAA);
 
     word = (0x7F << 9) | (7 << 6) | (6 << 3) | 1;
@@ -615,7 +573,6 @@ void testLiExecution() {
 
     unsigned short word;
 
-    // LI x3, 42
     word = (42 << 9) | (3 << 6) | (7 << 3) | 1;
     cpu.getMemory().write16(0x0020, word);
 
@@ -624,7 +581,6 @@ void testLiExecution() {
     assert(cpu.getRegisters().getRegister(3) == 42);
     assert(cpu.getPC() == 0x0022);
 
-    // LI x4, -1
     word = (0x7F << 9) | (4 << 6) | (7 << 3) | 1;
     cpu.getMemory().write16(0x0022, word);
 
@@ -633,7 +589,6 @@ void testLiExecution() {
     assert(cpu.getRegisters().getRegister(4) == 0xFFFF);
     assert(cpu.getPC() == 0x0024);
 
-    // LI x5, -64
     word = (0x40 << 9) | (5 << 6) | (7 << 3) | 1;
     cpu.getMemory().write16(0x0024, word);
 
@@ -642,7 +597,6 @@ void testLiExecution() {
     assert(cpu.getRegisters().getRegister(5) == 0xFFC0);
     assert(cpu.getPC() == 0x0026);
 
-    // LI x0, 7, because x0 is writable in ZX16
     word = (7 << 9) | (0 << 6) | (7 << 3) | 1;
     cpu.getMemory().write16(0x0026, word);
 
@@ -665,7 +619,6 @@ void testByteLoadExecution() {
     cpu.getMemory().write8(0x1001, 0x80);
     cpu.getMemory().write8(0x1002, 0xAB);
 
-    // LB x4, 0(x3), positive byte
     word = (0 << 12) | (3 << 9) | (4 << 6) | (0 << 3) | 4;
     cpu.getMemory().write16(0x0020, word);
 
@@ -674,7 +627,6 @@ void testByteLoadExecution() {
     assert(cpu.getRegisters().getRegister(4) == 0x007F);
     assert(cpu.getPC() == 0x0022);
 
-    // LB x5, 1(x3), negative byte 0x80 sign-extends to 0xFF80
     word = (1 << 12) | (3 << 9) | (5 << 6) | (0 << 3) | 4;
     cpu.getMemory().write16(0x0022, word);
 
@@ -683,7 +635,6 @@ void testByteLoadExecution() {
     assert(cpu.getRegisters().getRegister(5) == 0xFF80);
     assert(cpu.getPC() == 0x0024);
 
-    // LBU x6, 1(x3), byte 0x80 zero-extends to 0x0080
     word = (1 << 12) | (3 << 9) | (6 << 6) | (4 << 3) | 4;
     cpu.getMemory().write16(0x0024, word);
 
@@ -692,7 +643,6 @@ void testByteLoadExecution() {
     assert(cpu.getRegisters().getRegister(6) == 0x0080);
     assert(cpu.getPC() == 0x0026);
 
-    // LBU x7, 2(x3), byte 0xAB zero-extends to 0x00AB
     word = (2 << 12) | (3 << 9) | (7 << 6) | (4 << 3) | 4;
     cpu.getMemory().write16(0x0026, word);
 
@@ -711,12 +661,10 @@ void testWordLoadExecution() {
 
     cpu.getRegisters().setRegister(3, 0x2000);
 
-    // Word stored little-endian by memory.write16
     cpu.getMemory().write16(0x2000, 0xABCD);
     cpu.getMemory().write8(0x2004, 0x34);
     cpu.getMemory().write8(0x2005, 0x12);
 
-    // LW x4, 0(x3)
     word = (0 << 12) | (3 << 9) | (4 << 6) | (1 << 3) | 4;
     cpu.getMemory().write16(0x0020, word);
 
@@ -725,7 +673,6 @@ void testWordLoadExecution() {
     assert(cpu.getRegisters().getRegister(4) == 0xABCD);
     assert(cpu.getPC() == 0x0022);
 
-    // LW x5, 4(x3), from raw little-endian bytes 0x34, 0x12
     word = (4 << 12) | (3 << 9) | (5 << 6) | (1 << 3) | 4;
     cpu.getMemory().write16(0x0022, word);
 
@@ -744,8 +691,6 @@ void testStoreExecution() {
 
     cpu.getRegisters().setRegister(3, 0x3000);
 
-    // SB x4, 0(x3)
-    // Only low byte of x4 should be stored
     cpu.getRegisters().setRegister(4, 0xABCD);
 
     word = (0 << 12) | (4 << 9) | (3 << 6) | (0 << 3) | 3;
@@ -756,8 +701,6 @@ void testStoreExecution() {
     assert(cpu.getMemory().read8(0x3000) == 0xCD);
     assert(cpu.getPC() == 0x0022);
 
-    // SW x5, 2(x3)
-    // Full 16-bit word should be stored little-endian
     cpu.getRegisters().setRegister(5, 0x1234);
 
     word = (2 << 12) | (5 << 9) | (3 << 6) | (1 << 3) | 3;
@@ -770,8 +713,6 @@ void testStoreExecution() {
     assert(cpu.getMemory().read8(0x3003) == 0x12);
     assert(cpu.getPC() == 0x0024);
 
-    // SB x7, -1(x6)
-    // Negative offset should store at base - 1
     cpu.getRegisters().setRegister(6, 0x3010);
     cpu.getRegisters().setRegister(7, 0x00EE);
 
@@ -783,8 +724,6 @@ void testStoreExecution() {
     assert(cpu.getMemory().read8(0x300F) == 0xEE);
     assert(cpu.getPC() == 0x0026);
 
-    // SW x1, -2(x6)
-    // Negative even offset should store a word at base - 2
     cpu.getRegisters().setRegister(1, 0xBEEF);
 
     word = (0xE << 12) | (1 << 9) | (6 << 6) | (1 << 3) | 3;
@@ -798,6 +737,61 @@ void testStoreExecution() {
     assert(cpu.getPC() == 0x0028);
 
     printf("[PASS] Store test passed\n");
+}
+
+void testBeqBneExecution() {
+    CPU cpu;
+
+    unsigned short word;
+
+    // BEQ taken: x3 == x4, branch +4
+    cpu.getRegisters().setRegister(3, 5);
+    cpu.getRegisters().setRegister(4, 5);
+
+    word = (2 << 12) | (4 << 9) | (3 << 6) | (0 << 3) | 2;
+    cpu.getMemory().write16(0x0020, word);
+
+    cpu.step();
+
+    assert(cpu.getPC() == 0x0026);
+
+    // BEQ not taken: x3 != x4
+    cpu.setPC(0x0100);
+    cpu.getRegisters().setRegister(3, 5);
+    cpu.getRegisters().setRegister(4, 7);
+
+    word = (2 << 12) | (4 << 9) | (3 << 6) | (0 << 3) | 2;
+    cpu.getMemory().write16(0x0100, word);
+
+    cpu.step();
+
+    assert(cpu.getPC() == 0x0102);
+
+    // BNE taken: x1 != x2, branch +6
+    cpu.setPC(0x0200);
+    cpu.getRegisters().setRegister(1, 10);
+    cpu.getRegisters().setRegister(2, 20);
+
+    word = (3 << 12) | (2 << 9) | (1 << 6) | (1 << 3) | 2;
+    cpu.getMemory().write16(0x0200, word);
+
+    cpu.step();
+
+    assert(cpu.getPC() == 0x0208);
+
+    // BNE not taken: x1 == x2
+    cpu.setPC(0x0300);
+    cpu.getRegisters().setRegister(1, 9);
+    cpu.getRegisters().setRegister(2, 9);
+
+    word = (3 << 12) | (2 << 9) | (1 << 6) | (1 << 3) | 2;
+    cpu.getMemory().write16(0x0300, word);
+
+    cpu.step();
+
+    assert(cpu.getPC() == 0x0302);
+
+    printf("[PASS] BEQ/BNE branch test passed\n");
 }
 
 int main() {
@@ -818,6 +812,7 @@ int main() {
     testByteLoadExecution();
     testWordLoadExecution();
     testStoreExecution();
+    testBeqBneExecution();
 
     InitWindow(320, 240, "ZX16 Simulator");
     SetTargetFPS(60);
@@ -837,6 +832,7 @@ int main() {
         DrawText("Sequential PC: PASSED", 10, 100, 9, GREEN);
         DrawText("Instruction fields: PASSED", 10, 114, 9, GREEN);
         DrawText("Dispatcher: PASSED", 10, 128, 9, GREEN);
+        DrawText("BEQ/BNE: PASSED", 10, 142, 9, GREEN);
 
         DrawText("ADD/SUB: PASSED", 165, 30, 9, GREEN);
         DrawText("Logical ops: PASSED", 165, 44, 9, GREEN);

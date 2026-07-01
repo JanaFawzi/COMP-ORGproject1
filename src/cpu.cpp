@@ -68,41 +68,41 @@ RegisterFile& CPU::getRegisters() {
 void CPU::dispatch(DecodedInstruction instruction) {
     // Opcode is bits [2:0]
     switch (instruction.opcode) {
-    case 0:
-        handleRType(instruction);
-        break;
+        case 0:
+            handleRType(instruction);
+            break;
 
-    case 1:
-        handleIType(instruction);
-        break;
+        case 1:
+            handleIType(instruction);
+            break;
 
-    case 2:
-        handleBType(instruction);
-        break;
+        case 2:
+            handleBType(instruction);
+            break;
 
-    case 3:
-        handleSType(instruction);
-        break;
+        case 3:
+            handleSType(instruction);
+            break;
 
-    case 4:
-        handleLType(instruction);
-        break;
+        case 4:
+            handleLType(instruction);
+            break;
 
-    case 5:
-        handleJType(instruction);
-        break;
+        case 5:
+            handleJType(instruction);
+            break;
 
-    case 6:
-        handleUType(instruction);
-        break;
+        case 6:
+            handleUType(instruction);
+            break;
 
-    case 7:
-        handleSysType(instruction);
-        break;
+        case 7:
+            handleSysType(instruction);
+            break;
 
-    default:
-        lastHandler = -1;
-        break;
+        default:
+            lastHandler = -1;
+            break;
     }
 }
 
@@ -145,8 +145,7 @@ void CPU::handleRType(DecodedInstruction instruction) {
 
         if (amount == 0) {
             result = rdValue;
-        }
-        else {
+        } else {
             unsigned int temp = rdValue >> amount;
 
             // If sign bit is 1, fill upper bits with 1s
@@ -219,6 +218,23 @@ void CPU::handleIType(DecodedInstruction instruction) {
 
 void CPU::handleBType(DecodedInstruction instruction) {
     lastHandler = ZX16::B_TYPE;      // B-Type handler called
+
+    unsigned short rs1Value = registers.getRegister(instruction.rs1);
+    unsigned short rs2Value = registers.getRegister(instruction.rs2);
+
+    // BEQ rs1, rs2, label
+    if (instruction.func3 == 0x0) {
+        if (rs1Value == rs2Value) {
+            pc = pc + instruction.immediate;
+        }
+    }
+
+    // BNE rs1, rs2, label
+    if (instruction.func3 == 0x1) {
+        if (rs1Value != rs2Value) {
+            pc = pc + instruction.immediate;
+        }
+    }
 }
 
 void CPU::handleSType(DecodedInstruction instruction) {
@@ -252,8 +268,7 @@ void CPU::handleLType(DecodedInstruction instruction) {
 
         if ((byteValue & 0x80) != 0) {
             result = 0xFF00 | byteValue;
-        }
-        else {
+        } else {
             result = byteValue;
         }
 
