@@ -48,7 +48,7 @@ private:
     // Dispatcher chooses the correct handler using opcode
     void dispatch(DecodedInstruction instruction);
 
-    // Handler stubs for now
+    // Handler functions
     void handleRType(DecodedInstruction instruction);
     void handleIType(DecodedInstruction instruction);
     void handleBType(DecodedInstruction instruction);

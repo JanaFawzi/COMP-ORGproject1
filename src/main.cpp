@@ -356,6 +356,69 @@ void testExecutionDispatcher() {
     printf("[PASS] Execution dispatcher test passed\n");
 }
 
+void testAddSubExecution() {
+    CPU cpu;
+
+    unsigned short addWord;
+    unsigned short subWord;
+
+    // ADD x3, x4
+    // x3 = x3 + x4
+    cpu.getRegisters().setRegister(3, 5);
+    cpu.getRegisters().setRegister(4, 7);
+
+    addWord = (0x0 << 12) | (4 << 9) | (3 << 6) | 0;
+    cpu.getMemory().write16(0x0020, addWord);
+
+    cpu.step();
+
+    assert(cpu.getRegisters().getRegister(3) == 12);
+    assert(cpu.getRegisters().getRegister(4) == 7);
+    assert(cpu.getLastHandler() == ZX16::R_TYPE);
+    assert(cpu.getPC() == 0x0022);
+
+    // SUB x5, x6
+    // x5 = x5 - x6
+    cpu.getRegisters().setRegister(5, 20);
+    cpu.getRegisters().setRegister(6, 8);
+
+    subWord = (0x1 << 12) | (6 << 9) | (5 << 6) | 0;
+    cpu.getMemory().write16(0x0022, subWord);
+
+    cpu.step();
+
+    assert(cpu.getRegisters().getRegister(5) == 12);
+    assert(cpu.getRegisters().getRegister(6) == 8);
+    assert(cpu.getLastHandler() == ZX16::R_TYPE);
+    assert(cpu.getPC() == 0x0024);
+
+    // SUB wraparound test: 3 - 5 = 0xFFFE in 16-bit arithmetic
+    cpu.getRegisters().setRegister(7, 3);
+    cpu.getRegisters().setRegister(6, 5);
+
+    subWord = (0x1 << 12) | (6 << 9) | (7 << 6) | 0;
+    cpu.getMemory().write16(0x0024, subWord);
+
+    cpu.step();
+
+    assert(cpu.getRegisters().getRegister(7) == 0xFFFE);
+    assert(cpu.getPC() == 0x0026);
+
+    // ADD wraparound and x0 writable test: 0xFFFF + 1 = 0x0000
+    cpu.getRegisters().setRegister(0, 0xFFFF);
+    cpu.getRegisters().setRegister(1, 1);
+
+    addWord = (0x0 << 12) | (1 << 9) | (0 << 6) | 0;
+    cpu.getMemory().write16(0x0026, addWord);
+
+    cpu.step();
+
+    assert(cpu.getRegisters().getRegister(0) == 0x0000);
+    assert(cpu.getPC() == 0x0028);
+
+    printf("[PASS] ADD/SUB execution test passed\n");
+}
+
 int main() {
     testMemory();
     testRegisterFile();
@@ -365,6 +428,7 @@ int main() {
     testSequentialPC();
     testInstructionFields();
     testExecutionDispatcher();
+    testAddSubExecution();
 
     InitWindow(320, 240, "ZX16 Simulator");
     SetTargetFPS(60);
@@ -376,13 +440,14 @@ int main() {
 
         DrawText("ZX16 Simulator", 90, 5, 20, RAYWHITE);
         DrawText("Memory read/write test: PASSED", 45, 35, 16, GREEN);
-        DrawText("Register file test: PASSED", 55, 60, 16, GREEN);
-        DrawText("CPU reset test: PASSED", 70, 85, 16, GREEN);
-        DrawText("Program loader test: PASSED", 55, 110, 16, GREEN);
-        DrawText("Fetch test: PASSED", 90, 135, 16, GREEN);
-        DrawText("Sequential PC test: PASSED", 65, 160, 16, GREEN);
-        DrawText("Instruction fields test: PASSED", 45, 185, 16, GREEN);
-        DrawText("Execution dispatcher test: PASSED", 35, 210, 16, GREEN);
+        DrawText("Register file test: PASSED", 55, 58, 16, GREEN);
+        DrawText("CPU reset test: PASSED", 70, 81, 16, GREEN);
+        DrawText("Program loader test: PASSED", 55, 104, 16, GREEN);
+        DrawText("Fetch test: PASSED", 90, 127, 16, GREEN);
+        DrawText("Sequential PC test: PASSED", 65, 150, 16, GREEN);
+        DrawText("Instruction fields test: PASSED", 45, 173, 16, GREEN);
+        DrawText("Execution dispatcher test: PASSED", 35, 196, 16, GREEN);
+        DrawText("ADD/SUB execution test: PASSED", 40, 219, 16, GREEN);
 
         EndDrawing();
     }

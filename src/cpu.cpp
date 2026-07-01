@@ -108,6 +108,19 @@ void CPU::dispatch(DecodedInstruction instruction) {
 
 void CPU::handleRType(DecodedInstruction instruction) {
     lastHandler = ZX16::R_TYPE;      // R-Type handler called
+
+    unsigned short rdValue = registers.getRegister(instruction.rd);
+    unsigned short rs2Value = registers.getRegister(instruction.rs2);
+
+    // ADD rd, rs2: rd = rd + rs2
+    if (instruction.funct4 == 0x0) {
+        registers.setRegister(instruction.rd, rdValue + rs2Value);
+    }
+
+    // SUB rd, rs2: rd = rd - rs2
+    if (instruction.funct4 == 0x1) {
+        registers.setRegister(instruction.rd, rdValue - rs2Value);
+    }
 }
 
 void CPU::handleIType(DecodedInstruction instruction) {
