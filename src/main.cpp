@@ -716,8 +716,7 @@ int main() {
             guiCpu.getOutput(),
             frameNumber,
             running,
-            guiCpu.isHalted(),
-            guiCpu.getPC()
+            guiCpu
         );
 
         if (action == GUI_ACTION_RUN_PAUSE) {

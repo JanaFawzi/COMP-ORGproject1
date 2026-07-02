@@ -1,6 +1,8 @@
 #ifndef GUI_H
 #define GUI_H
 
+class CPU;
+
 enum GuiAction {
     GUI_ACTION_NONE = 0,
     GUI_ACTION_RUN_PAUSE = 1,
@@ -12,23 +14,18 @@ class Gui {
 public:
     Gui();
 
-    // Open simulator window
     void open();
 
-    // Check if user closed window
     bool shouldClose();
 
-    // Draw full GUI and return button action
     GuiAction draw(
         const char testStatus[],
         const char consoleText[],
         int frameNumber,
         bool running,
-        bool halted,
-        unsigned short pc
+        CPU& cpu
     );
 
-    // Close simulator window
     void close();
 
 private:
@@ -39,13 +36,14 @@ private:
         const char testStatus[],
         int frameNumber,
         bool running,
-        bool halted,
-        unsigned short pc
+        CPU& cpu
     );
 
     void drawConsolePanel(const char consoleText[]);
 
     GuiAction drawControlPanel(bool running, bool halted);
+
+    void drawRegisterPanel(CPU& cpu);
 
     bool drawButton(float x, float y, float w, float h, const char text[]);
 };

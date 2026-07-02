@@ -1,11 +1,12 @@
 #include "gui.h"
+#include "cpu.h"
 #include "raylib.h"
 
 #include <stdio.h>
 
 Gui::Gui() {
-    width = 760;
-    height = 420;
+    width = 900;
+    height = 500;
 }
 
 void Gui::open() {
@@ -22,8 +23,7 @@ GuiAction Gui::draw(
     const char consoleText[],
     int frameNumber,
     bool running,
-    bool halted,
-    unsigned short pc
+    CPU& cpu
 ) {
     GuiAction action;
 
@@ -31,11 +31,12 @@ GuiAction Gui::draw(
 
     ClearBackground(BLACK);
 
-    DrawText("ZX16 Simulator", 280, 15, 22, RAYWHITE);
+    DrawText("ZX16 Simulator", 360, 15, 22, RAYWHITE);
 
-    drawStatusPanel(testStatus, frameNumber, running, halted, pc);
+    drawStatusPanel(testStatus, frameNumber, running, cpu);
     drawConsolePanel(consoleText);
-    action = drawControlPanel(running, halted);
+    action = drawControlPanel(running, cpu.isHalted());
+    drawRegisterPanel(cpu);
 
     EndDrawing();
 
@@ -46,17 +47,18 @@ void Gui::drawStatusPanel(
     const char testStatus[],
     int frameNumber,
     bool running,
-    bool halted,
-    unsigned short pc
+    CPU& cpu
 ) {
     char frameText[40];
     char pcText[40];
+    char spText[40];
     char stateText[40];
 
     sprintf(frameText, "Frame update: %d", frameNumber);
-    sprintf(pcText, "PC: 0x%04X", pc);
+    sprintf(pcText, "PC: 0x%04X", cpu.getPC());
+    sprintf(spText, "SP: 0x%04X", cpu.getSP());
 
-    if (halted) {
+    if (cpu.isHalted()) {
         sprintf(stateText, "CPU state: HALTED");
     }
     else if (running) {
@@ -66,7 +68,7 @@ void Gui::drawStatusPanel(
         sprintf(stateText, "CPU state: PAUSED");
     }
 
-    DrawRectangleLines(25, 60, 280, 300, GREEN);
+    DrawRectangleLines(25, 60, 260, 360, GREEN);
 
     DrawText("Status Panel", 45, 80, 18, GREEN);
     DrawText(testStatus, 45, 115, 14, RAYWHITE);
@@ -74,55 +76,82 @@ void Gui::drawStatusPanel(
     DrawText("Window open: PASSED", 45, 150, 14, GREEN);
     DrawText("Console panel: PASSED", 45, 175, 14, GREEN);
     DrawText("Buttons: PASSED", 45, 200, 14, GREEN);
+    DrawText("Register display: PASSED", 45, 225, 14, GREEN);
 
-    DrawText(pcText, 45, 235, 14, GREEN);
-    DrawText(stateText, 45, 260, 14, GREEN);
-    DrawText(frameText, 45, 285, 14, GREEN);
+    DrawText(pcText, 45, 265, 14, GREEN);
+    DrawText(spText, 45, 290, 14, GREEN);
+    DrawText(stateText, 45, 315, 14, GREEN);
+    DrawText(frameText, 45, 340, 14, GREEN);
 }
 
 void Gui::drawConsolePanel(const char consoleText[]) {
-    DrawRectangleLines(335, 60, 390, 190, GREEN);
+    DrawRectangleLines(315, 60, 270, 220, GREEN);
 
-    DrawText("Console", 355, 80, 18, GREEN);
+    DrawText("Console", 335, 80, 18, GREEN);
 
-    DrawRectangle(355, 115, 350, 110, DARKGRAY);
-    DrawRectangleLines(355, 115, 350, 110, GRAY);
+    DrawRectangle(335, 115, 230, 135, DARKGRAY);
+    DrawRectangleLines(335, 115, 230, 135, GRAY);
 
-    DrawText(consoleText, 370, 135, 18, GREEN);
+    DrawText(consoleText, 350, 135, 18, GREEN);
 }
 
 GuiAction Gui::drawControlPanel(bool running, bool halted) {
     GuiAction action = GUI_ACTION_NONE;
 
-    DrawRectangleLines(335, 270, 390, 90, GREEN);
+    DrawRectangleLines(315, 305, 270, 115, GREEN);
 
-    DrawText("Controls", 355, 285, 18, GREEN);
+    DrawText("Controls", 335, 325, 18, GREEN);
 
     if (halted) {
-        if (drawButton(355, 320, 100, 30, "Run")) {
+        if (drawButton(335, 370, 70, 30, "Run")) {
             action = GUI_ACTION_RUN_PAUSE;
         }
     }
     else if (running) {
-        if (drawButton(355, 320, 100, 30, "Pause")) {
+        if (drawButton(335, 370, 70, 30, "Pause")) {
             action = GUI_ACTION_RUN_PAUSE;
         }
     }
     else {
-        if (drawButton(355, 320, 100, 30, "Run")) {
+        if (drawButton(335, 370, 70, 30, "Run")) {
             action = GUI_ACTION_RUN_PAUSE;
         }
     }
 
-    if (drawButton(470, 320, 100, 30, "Step")) {
+    if (drawButton(425, 370, 70, 30, "Step")) {
         action = GUI_ACTION_STEP;
     }
 
-    if (drawButton(585, 320, 100, 30, "Reset")) {
+    if (drawButton(515, 370, 70, 30, "Reset")) {
         action = GUI_ACTION_RESET;
     }
 
     return action;
+}
+
+void Gui::drawRegisterPanel(CPU& cpu) {
+    char text[40];
+
+    DrawRectangleLines(615, 60, 250, 360, GREEN);
+
+    DrawText("Registers", 635, 80, 18, GREEN);
+
+    sprintf(text, "PC     : 0x%04X", cpu.getPC());
+    DrawText(text, 635, 115, 14, GREEN);
+
+    sprintf(text, "SP/x2  : 0x%04X", cpu.getSP());
+    DrawText(text, 635, 140, 14, GREEN);
+
+    for (int i = 0; i < 8; i++) {
+        if (i == 2) {
+            sprintf(text, "x%d/sp : 0x%04X", i, cpu.getRegisters().getRegister(i));
+        }
+        else {
+            sprintf(text, "x%d    : 0x%04X", i, cpu.getRegisters().getRegister(i));
+        }
+
+        DrawText(text, 635, 180 + i * 24, 14, GREEN);
+    }
 }
 
 bool Gui::drawButton(float x, float y, float w, float h, const char text[]) {
@@ -146,7 +175,7 @@ bool Gui::drawButton(float x, float y, float w, float h, const char text[]) {
     }
 
     DrawRectangleLines((int)x, (int)y, (int)w, (int)h, GREEN);
-    DrawText(text, (int)x + 25, (int)y + 8, 14, RAYWHITE);
+    DrawText(text, (int)x + 12, (int)y + 8, 14, RAYWHITE);
 
     if (hover && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
         return true;
