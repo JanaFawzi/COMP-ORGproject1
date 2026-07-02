@@ -922,6 +922,89 @@ void testRemainingBranchesExecution() {
     printf("[PASS] Remaining branches test passed\n");
 }
 
+void testJumpExecution() {
+    CPU cpu;
+
+    unsigned short word;
+
+    // J +4
+    // Start at 0x0020, fetch moves PC to 0x0022, then jump +4 -> 0x0026
+    word = (0 << 15) | (0 << 9) | (0 << 6) | (2 << 3) | 5;
+    cpu.getMemory().write16(0x0020, word);
+
+    cpu.step();
+
+    assert(cpu.getPC() == 0x0026);
+
+    // JAL x1, +6
+    // Return address should be PC after fetch, target should be PC + 6
+    cpu.setPC(0x0100);
+
+    word = (1 << 15) | (0 << 9) | (1 << 6) | (3 << 3) | 5;
+    cpu.getMemory().write16(0x0100, word);
+
+    cpu.step();
+
+    assert(cpu.getRegisters().getRegister(1) == 0x0102);
+    assert(cpu.getPC() == 0x0108);
+
+    // JR x5
+    cpu.setPC(0x0200);
+    cpu.getRegisters().setRegister(5, 0x2222);
+
+    word = (0xB << 12) | (0 << 9) | (5 << 6) | (0 << 3) | 0;
+    cpu.getMemory().write16(0x0200, word);
+
+    cpu.step();
+
+    assert(cpu.getPC() == 0x2222);
+
+    // JALR x1, x6
+    // x1 gets return address, PC jumps to x6
+    cpu.setPC(0x0240);
+    cpu.getRegisters().setRegister(6, 0x3330);
+
+    word = (0xC << 12) | (6 << 9) | (1 << 6) | (0 << 3) | 0;
+    cpu.getMemory().write16(0x0240, word);
+
+    cpu.step();
+
+    assert(cpu.getRegisters().getRegister(1) == 0x0242);
+    assert(cpu.getPC() == 0x3330);
+
+    // Function-call style test:
+    // 0x0400: JAL ra, function
+    // 0x0408: ADDI x3, 1
+    // 0x040A: JR ra
+    cpu.setPC(0x0400);
+    cpu.getRegisters().setRegister(3, 10);
+
+    word = (1 << 15) | (0 << 9) | (1 << 6) | (3 << 3) | 5;
+    cpu.getMemory().write16(0x0400, word);
+
+    word = (1 << 9) | (3 << 6) | (0 << 3) | 1;
+    cpu.getMemory().write16(0x0408, word);
+
+    word = (0xB << 12) | (0 << 9) | (1 << 6) | (0 << 3) | 0;
+    cpu.getMemory().write16(0x040A, word);
+
+    cpu.step();
+
+    assert(cpu.getRegisters().getRegister(1) == 0x0402);
+    assert(cpu.getPC() == 0x0408);
+
+    cpu.step();
+
+    assert(cpu.getRegisters().getRegister(3) == 11);
+    assert(cpu.getPC() == 0x040A);
+
+    cpu.step();
+
+    assert(cpu.getPC() == 0x0402);
+
+    printf("[PASS] Jump/function-call test passed\n");
+}
+
 void testEcallPrintIntExecution() {
     CPU cpu;
 
@@ -995,6 +1078,7 @@ int main() {
     testStoreExecution();
     testBeqBneExecution();
     testRemainingBranchesExecution();
+    testJumpExecution();
     testEcallPrintIntExecution();
     InitWindow(320, 240, "ZX16 Simulator");
     SetTargetFPS(60);
@@ -1026,6 +1110,8 @@ int main() {
         DrawText("Byte load: PASSED", 165, 114, 9, GREEN);
         DrawText("Word load: PASSED", 165, 128, 9, GREEN);
         DrawText("Store: PASSED", 165, 142, 9, GREEN);
+        DrawText("Jump/function call: PASSED", 10, 170, 9, GREEN);
+
         DrawText("ECALL print_int: PASSED", 165, 156, 9, GREEN);
         EndDrawing();
     }

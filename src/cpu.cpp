@@ -225,6 +225,18 @@ void CPU::handleRType(DecodedInstruction instruction) {
         result = rdValue ^ rs2Value;
         registers.setRegister(instruction.rd, result);
     }
+
+     // JR rd: PC = rd
+    if (instruction.funct4 == 0xB) {
+        pc = rdValue;
+    }
+
+    // JALR rd, rs2: rd = PC + 2, PC = rs2
+    // fetch() already moved PC to the return address
+    if (instruction.funct4 == 0xC) {
+        registers.setRegister(instruction.rd, pc);
+        pc = rs2Value;
+    }
 }
 
 void CPU::handleIType(DecodedInstruction instruction) {
@@ -392,6 +404,15 @@ void CPU::handleLType(DecodedInstruction instruction) {
 
 void CPU::handleJType(DecodedInstruction instruction) {
     lastHandler = ZX16::J_TYPE;      // J-Type handler called
+
+    // J imm: PC = PC + imm
+    // JAL rd, imm: rd = PC + 2, PC = PC + imm
+    // fetch() already moved PC to PC + 2
+    if (instruction.linkFlag == 1) {
+        registers.setRegister(instruction.rd, pc);
+    }
+
+    pc = pc + instruction.immediate;
 }
 
 void CPU::handleUType(DecodedInstruction instruction) {
