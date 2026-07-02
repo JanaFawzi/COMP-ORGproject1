@@ -11,9 +11,9 @@ set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(BUILD_GAMES OFF CACHE BOOL "" FORCE)
 
 FetchContent_Declare(
-        raylib
-        GIT_REPOSITORY https://github.com/raysan5/raylib.git
-        GIT_TAG 5.0
+    raylib
+    GIT_REPOSITORY https://github.com/raysan5/raylib.git
+    GIT_TAG 5.0
 )
 
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "" FORCE)
@@ -21,13 +21,13 @@ set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "" FORCE)
 FetchContent_MakeAvailable(raylib)
 
 add_executable(zx16sim
-        src/main.cpp
-        src/memory.cpp
-        src/register_file.cpp
-        src/cpu.cpp
-        src/program_loader.cpp
-        src/instruction_decoder.cpp
-        src/instruction_decoder.h
+    src/main.cpp
+    src/memory.cpp
+    src/register_file.cpp
+    src/cpu.cpp
+    src/program_loader.cpp
+    src/instruction_decoder.cpp
+    src/gui.cpp
 )
 
 target_link_libraries(zx16sim PRIVATE raylib)
