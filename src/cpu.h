@@ -40,6 +40,9 @@ public:
     const char* getOutput();
     void clearOutput();
 
+    // Check if CPU is halted
+    bool isHalted();
+
 private:
     Memory memory;                  // 64 KB RAM
     RegisterFile registers;         // 8 registers x0..x7
@@ -48,7 +51,13 @@ private:
     unsigned short pc;              // Program counter
     unsigned short lastInstruction; // Last instruction fetched by CPU
     int lastHandler;                // Last handler called by dispatcher
+    
+    static const int OUTPUT_SIZE = 1024;
+    char output[OUTPUT_SIZE];
+    int outputLength;
 
+    bool halted;
+    
     // Dispatcher chooses the correct handler using opcode
     void dispatch(DecodedInstruction instruction);
 
@@ -62,14 +71,12 @@ private:
     void handleUType(DecodedInstruction instruction);
     void handleSysType(DecodedInstruction instruction);
 
-    static const int OUTPUT_SIZE = 1024;
-    char output[OUTPUT_SIZE];
-    int outputLength;
     // Output functions for SYS calls
     void appendChar(char c);
     void appendText(const char text[]);
     void printSignedDecimal(unsigned short value);
     int toSigned16(unsigned short value);
+
 };
 
 #endif

@@ -1099,6 +1099,48 @@ void testEcallPrintCharExecution() {
     printf("\n[PASS] ECALL print_char test passed\n");
 }
 
+void testEcallHaltExecution() {
+    CPU cpu;
+
+    unsigned short haltWord = (0x3FF << 6) | 7; // ECALL halt
+    unsigned short addWord;
+
+    // Prepare an ADD instruction after halt.
+    // If halt works, this ADD must never execute.
+    addWord = (0x0 << 12) | (4 << 9) | (3 << 6) | 0;
+
+    cpu.setPC(0x3000);
+    cpu.getRegisters().setRegister(3, 5);
+    cpu.getRegisters().setRegister(4, 7);
+
+    cpu.getMemory().write16(0x3000, haltWord);
+    cpu.getMemory().write16(0x3002, addWord);
+
+    assert(cpu.isHalted() == false);
+
+    cpu.step();
+
+    assert(cpu.isHalted() == true);
+    assert(cpu.getLastHandler() == ZX16::SYS_TYPE);
+    assert(cpu.getPC() == 0x3002);
+
+    // Try stepping again.
+    // CPU should stay halted and must not execute ADD at 0x3002.
+    cpu.step();
+
+    assert(cpu.isHalted() == true);
+    assert(cpu.getPC() == 0x3002);
+    assert(cpu.getRegisters().getRegister(3) == 5);
+
+    // Reset should clear halted state
+    cpu.reset();
+
+    assert(cpu.isHalted() == false);
+    assert(cpu.getPC() == 0x0020);
+
+    printf("[PASS] ECALL halt test passed\n");
+}
+
 int main() {
     testMemory();
     testRegisterFile();
@@ -1122,6 +1164,7 @@ int main() {
     testJumpExecution();
     testEcallPrintIntExecution();
     testEcallPrintCharExecution();
+    testEcallHaltExecution();
     InitWindow(320, 240, "ZX16 Simulator");
     SetTargetFPS(60);
 
@@ -1156,6 +1199,7 @@ int main() {
 
         DrawText("ECALL print_int: PASSED", 165, 156, 9, GREEN);
         DrawText("ECALL print_char: PASSED", 165, 170, 9, GREEN);
+        DrawText("ECALL halt: PASSED", 165, 184, 9, GREEN);
         EndDrawing();
     }
 

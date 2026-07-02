@@ -15,6 +15,8 @@ void CPU::reset() {
     lastInstruction = 0x0000;   // No instruction fetched yet
     lastHandler = -1;           // No handler called yet
     clearOutput();                  // Clear console output
+
+    halted = false;                 // CPU is running after reset
 }
 
 unsigned short CPU::getPC() {
@@ -42,6 +44,10 @@ unsigned short CPU::fetch() {
 }
 
 unsigned short CPU::step() {
+     if (halted) {
+        return lastInstruction;  // Do not fetch or execute after halt
+    }
+
     lastInstruction = fetch();                      // Fetch raw instruction
 
     DecodedInstruction decoded = decoder.decode(lastInstruction);
@@ -69,6 +75,10 @@ RegisterFile& CPU::getRegisters() {
 
 const char* CPU::getOutput() {
     return output;
+}
+
+bool CPU::isHalted() {
+    return halted;
 }
 
 void CPU::clearOutput() {
@@ -436,5 +446,10 @@ void CPU::handleSysType(DecodedInstruction instruction) {
 
         // Also show it in CLion terminal for now
         printf("%c", c);
+    }
+
+     // ECALL 0x3FF: halt
+    if (instruction.service == 0x3FF) {
+        halted = true;
     }
 }
