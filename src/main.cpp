@@ -1401,6 +1401,67 @@ void testEcallReadStringExecution() {
     printf("[PASS] ECALL read_string test passed\n");
 }
 
+void testRngStateReset() {
+    CPU cpu;
+
+    assert(cpu.getRngState() == CPU::DEFAULT_RNG_SEED);
+
+    cpu.seedRng(0x1234);
+    assert(cpu.getRngState() == 0x1234);
+
+    cpu.seedRng(0x0000);
+    assert(cpu.getRngState() == 0x0000);
+
+    cpu.seedRng(0xFFFF);
+    assert(cpu.getRngState() == 0xFFFF);
+
+    cpu.reset();
+    assert(cpu.getRngState() == CPU::DEFAULT_RNG_SEED);
+
+    cpu.seedRng(0xBEEF);
+    assert(cpu.getRngState() == 0xBEEF);
+
+    cpu.resetRng();
+    assert(cpu.getRngState() == CPU::DEFAULT_RNG_SEED);
+
+    printf("[PASS] RNG state reset test passed\n");
+}
+
+void testEcallSeedRngExecution() {
+    CPU cpu;
+
+    unsigned short word = makeSys(0x020);
+
+    assert(cpu.getRngState() == CPU::DEFAULT_RNG_SEED);
+
+    cpu.setPC(0x4000);
+    cpu.getRegisters().setRegister(6, 0x1234);
+    cpu.getMemory().write16(0x4000, word);
+    cpu.step();
+
+    assert(cpu.getRngState() == 0x1234);
+    assert(cpu.getPC() == 0x4002);
+    assert(cpu.getLastHandler() == ZX16::SYS_TYPE);
+
+    cpu.setPC(0x4002);
+    cpu.getRegisters().setRegister(6, 0xACE1);
+    cpu.getMemory().write16(0x4002, word);
+    cpu.step();
+
+    assert(cpu.getRngState() == 0xACE1);
+    assert(cpu.getPC() == 0x4004);
+
+    cpu.setPC(0x4004);
+    cpu.getRegisters().setRegister(6, 0x0000);
+    cpu.getMemory().write16(0x4004, word);
+    cpu.step();
+
+    assert(cpu.getRngState() == 0x0000);
+    assert(cpu.getPC() == 0x4006);
+
+    printf("[PASS] ECALL seed_rng test passed\n");
+}
+
 void testRegisterFile() {
     RegisterFile registers;
 
@@ -2286,6 +2347,8 @@ int main() {
     testEcallPrintStringExecution();
     testEcallReadIntExecution();
     testEcallReadStringExecution();
+    testRngStateReset();
+    testEcallSeedRngExecution();
     testRegisterFile();
     testCPUReset();
     testProgramLoader();

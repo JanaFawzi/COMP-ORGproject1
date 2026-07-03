@@ -7,6 +7,8 @@
 
 class CPU {
 public:
+    static constexpr unsigned short DEFAULT_RNG_SEED = 0xACE1;
+
     CPU();
 
     void reset();
@@ -34,6 +36,10 @@ public:
     void setInput(const char text[]);
     void appendInput(const char text[]);
 
+    unsigned short getRngState();
+    void resetRng();
+    void seedRng(unsigned short seed);
+
     bool isHalted();
 
 private:
@@ -53,6 +59,8 @@ private:
     char input[INPUT_SIZE];
     int inputLength;
     int inputPosition;
+
+    unsigned short rngState;
 
     bool halted;
 

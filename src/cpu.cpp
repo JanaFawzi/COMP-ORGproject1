@@ -17,6 +17,7 @@ void CPU::reset() {
     lastHandler = -1;
 
     clearOutput();
+    resetRng();
 
     halted = false;
 }
@@ -112,6 +113,18 @@ void CPU::appendInput(const char text[]) {
         input[inputLength] = '\0';
         i++;
     }
+}
+
+unsigned short CPU::getRngState() {
+    return rngState;
+}
+
+void CPU::resetRng() {
+    rngState = DEFAULT_RNG_SEED;
+}
+
+void CPU::seedRng(unsigned short seed) {
+    rngState = seed;
 }
 
 bool CPU::isHalted() {
@@ -592,6 +605,12 @@ void CPU::handleSysType(DecodedInstruction instruction) {
         unsigned short address = registers.getRegister(6);
 
         printStringFromMemory(address);
+    }
+
+    if (instruction.service == 0x020) {
+        unsigned short seed = registers.getRegister(6);
+
+        seedRng(seed);
     }
 
     if (instruction.service == 0x3FF) {
