@@ -22,6 +22,9 @@ public:
     
     static int getConsoleVisibleLineCount();
     static void buildConsoleVisibleText(const char consoleText[], char visibleText[], int visibleSize);
+
+    static unsigned short getMemoryViewerBaseAddress(unsigned short pc);
+    static bool isCurrentInstructionByte(unsigned short address, unsigned short pc);
     
     void open();
 
@@ -48,6 +51,7 @@ private:
     static const int CONSOLE_VISIBLE_LINES = 5;
 
     void updateKeyboardFromRaylib(CPU& cpu);
+    void drawMemoryLineWithHighlight(CPU& cpu, unsigned short address, unsigned short pc, int x, int y);
 
     void updateAudioFromCpu(CPU& cpu);
     bool playTone(unsigned short frequency, unsigned short durationMs);

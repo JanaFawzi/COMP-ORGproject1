@@ -30,6 +30,6 @@ add_executable(zx16sim
     src/gui.cpp
     src/graphics_memory.cpp
 
-)
+ "src/breakpoint_manager.h")
 
 target_link_libraries(zx16sim PRIVATE raylib)

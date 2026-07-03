@@ -30,6 +30,9 @@ void CPU::reset() {
 
     resetVolume();
 
+    breakpointManager.reset();
+    clearBreakpointHit();
+
     halted = false;
 }
 
@@ -69,6 +72,70 @@ unsigned short CPU::step() {
     dispatch(decoded);
 
     return lastInstruction;
+}
+
+bool CPU::isValidBreakpointAddress(unsigned short address) {
+    return BreakpointManager::isValidBreakpointAddress(address);
+}
+
+bool CPU::setBreakpoint(unsigned short address) {
+    return breakpointManager.setBreakpoint(address);
+}
+
+bool CPU::clearBreakpoint(unsigned short address) {
+    return breakpointManager.clearBreakpoint(address);
+}
+
+bool CPU::toggleBreakpoint(unsigned short address) {
+    return breakpointManager.toggleBreakpoint(address);
+}
+
+bool CPU::hasBreakpoint(unsigned short address) {
+    return breakpointManager.hasBreakpoint(address);
+}
+
+void CPU::clearBreakpoints() {
+    breakpointManager.reset();
+    clearBreakpointHit();
+}
+
+int CPU::getBreakpointCount() {
+    return breakpointManager.getBreakpointCount();
+}
+
+bool CPU::hasBreakpointAtPC() {
+    return breakpointManager.hasBreakpoint(pc);
+}
+
+bool CPU::hasBreakpointHit() {
+    return breakpointHit;
+}
+
+unsigned short CPU::getBreakpointHitAddress() {
+    return breakpointHitAddress;
+}
+
+void CPU::clearBreakpointHit() {
+    breakpointHit = false;
+    breakpointHitAddress = 0;
+}
+
+bool CPU::stepWithBreakpoints() {
+    if (halted) {
+        return false;
+    }
+
+    if (hasBreakpointAtPC()) {
+        breakpointHit = true;
+        breakpointHitAddress = pc;
+        return false;
+    }
+
+    clearBreakpointHit();
+
+    step();
+
+    return true;
 }
 
 unsigned short CPU::getLastInstruction() {

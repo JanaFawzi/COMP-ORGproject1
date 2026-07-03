@@ -2937,6 +2937,129 @@ void testFinalBinPrograms() {
     printf("\n[PASS] Final integration .bin programs test passed\n");
 }
 
+void testBreakpointStopsExecution() {
+    CPU cpu;
+
+    unsigned short randomWord = makeSys(0x021);
+
+    assert(CPU::isValidBreakpointAddress(0x7000) == true);
+    assert(CPU::isValidBreakpointAddress(0x7002) == true);
+    assert(CPU::isValidBreakpointAddress(0x7001) == false);
+
+    assert(cpu.getBreakpointCount() == 0);
+    assert(cpu.hasBreakpointHit() == false);
+    assert(cpu.getBreakpointHitAddress() == 0);
+
+    assert(cpu.setBreakpoint(0x7002) == true);
+    assert(cpu.getBreakpointCount() == 1);
+    assert(cpu.hasBreakpoint(0x7002) == true);
+
+    assert(cpu.setBreakpoint(0x7002) == true);
+    assert(cpu.getBreakpointCount() == 1);
+
+    assert(cpu.setBreakpoint(0x7003) == false);
+    assert(cpu.getBreakpointCount() == 1);
+
+    cpu.setPC(0x7000);
+    cpu.seedRng(0x1234);
+
+    cpu.getMemory().write16(0x7000, randomWord);
+    cpu.getMemory().write16(0x7002, randomWord);
+
+    bool executed = cpu.stepWithBreakpoints();
+
+    assert(executed == true);
+    assert(cpu.hasBreakpointHit() == false);
+    assert(cpu.getPC() == 0x7002);
+    assert(cpu.getRegisters().getRegister(6) == 0x3830);
+
+    executed = cpu.stepWithBreakpoints();
+
+    assert(executed == false);
+    assert(cpu.hasBreakpointHit() == true);
+    assert(cpu.getBreakpointHitAddress() == 0x7002);
+    assert(cpu.getPC() == 0x7002);
+    assert(cpu.getRegisters().getRegister(6) == 0x3830);
+
+    assert(cpu.clearBreakpoint(0x7002) == true);
+    assert(cpu.getBreakpointCount() == 0);
+    assert(cpu.hasBreakpoint(0x7002) == false);
+
+    cpu.clearBreakpointHit();
+
+    assert(cpu.hasBreakpointHit() == false);
+
+    executed = cpu.stepWithBreakpoints();
+
+    assert(executed == true);
+    assert(cpu.getPC() == 0x7004);
+    assert(cpu.getRegisters().getRegister(6) == 0x0020);
+
+    assert(cpu.toggleBreakpoint(0x7004) == true);
+    assert(cpu.hasBreakpoint(0x7004) == true);
+    assert(cpu.getBreakpointCount() == 1);
+
+    assert(cpu.toggleBreakpoint(0x7004) == true);
+    assert(cpu.hasBreakpoint(0x7004) == false);
+    assert(cpu.getBreakpointCount() == 0);
+
+    assert(cpu.setBreakpoint(0x7006) == true);
+    assert(cpu.getBreakpointCount() == 1);
+
+    cpu.clearBreakpoints();
+
+    assert(cpu.getBreakpointCount() == 0);
+    assert(cpu.hasBreakpoint(0x7006) == false);
+    assert(cpu.hasBreakpointHit() == false);
+
+    printf("[PASS] Breakpoint stops execution test passed\n");
+}
+
+void testCurrentPcHighlightMovesCorrectly() {
+    CPU cpu;
+
+    unsigned short randomWord = makeSys(0x021);
+
+    assert(Gui::getMemoryViewerBaseAddress(0x0020) == 0x0020);
+    assert(Gui::getMemoryViewerBaseAddress(0x0022) == 0x0020);
+    assert(Gui::getMemoryViewerBaseAddress(0x002E) == 0x0020);
+    assert(Gui::getMemoryViewerBaseAddress(0x0030) == 0x0030);
+
+    assert(Gui::isCurrentInstructionByte(0x7000, 0x7000) == true);
+    assert(Gui::isCurrentInstructionByte(0x7001, 0x7000) == true);
+    assert(Gui::isCurrentInstructionByte(0x7002, 0x7000) == false);
+
+    cpu.setPC(0x7000);
+    cpu.seedRng(0x1234);
+
+    cpu.getMemory().write16(0x7000, randomWord);
+    cpu.getMemory().write16(0x7002, randomWord);
+
+    assert(Gui::getMemoryViewerBaseAddress(cpu.getPC()) == 0x7000);
+    assert(Gui::isCurrentInstructionByte(0x7000, cpu.getPC()) == true);
+    assert(Gui::isCurrentInstructionByte(0x7001, cpu.getPC()) == true);
+    assert(Gui::isCurrentInstructionByte(0x7002, cpu.getPC()) == false);
+
+    cpu.step();
+
+    assert(cpu.getPC() == 0x7002);
+    assert(Gui::getMemoryViewerBaseAddress(cpu.getPC()) == 0x7000);
+    assert(Gui::isCurrentInstructionByte(0x7000, cpu.getPC()) == false);
+    assert(Gui::isCurrentInstructionByte(0x7001, cpu.getPC()) == false);
+    assert(Gui::isCurrentInstructionByte(0x7002, cpu.getPC()) == true);
+    assert(Gui::isCurrentInstructionByte(0x7003, cpu.getPC()) == true);
+
+    cpu.step();
+
+    assert(cpu.getPC() == 0x7004);
+    assert(Gui::isCurrentInstructionByte(0x7002, cpu.getPC()) == false);
+    assert(Gui::isCurrentInstructionByte(0x7003, cpu.getPC()) == false);
+    assert(Gui::isCurrentInstructionByte(0x7004, cpu.getPC()) == true);
+    assert(Gui::isCurrentInstructionByte(0x7005, cpu.getPC()) == true);
+
+    printf("[PASS] Current PC highlight moves correctly test passed\n");
+}
+
 int main() {
     testMemory();
     testGraphicsMemoryManager();
@@ -2953,20 +3076,28 @@ int main() {
     testRendererLiveUpdate();
     testRendererConnectedToVram();
     testFrameTimingStableRefresh();
+
     testEcallPrintStringExecution();
     testEcallReadIntExecution();
     testEcallReadStringExecution();
+
     testRngStateReset();
     testEcallSeedRngExecution();
     testEcallRandomXorshiftExecution();
+
     testKeyboardEcallDetectKeyPress();
     testRaylibKeyboardMappingDirections();
+
     testEcallPlayToneExecution();
     testEcallSetVolumeExecution();
     testEcallStopAudioExecution();
+
     testEcallRegsDumpExecution();
     testEcallMemDumpExecution();
+
     testConsoleUpdatesCorrectly();
+    testBreakpointStopsExecution();
+
     testRegisterFile();
     testCPUReset();
     testProgramLoader();
@@ -2974,24 +3105,33 @@ int main() {
     testSequentialPC();
     testInstructionFields();
     testExecutionDispatcher();
+
     testAddSubExecution();
     testLogicalExecution();
     testShiftExecution();
     testAddiExecution();
     testImmediateLogicExecution();
     testLiExecution();
+
     testByteLoadExecution();
     testWordLoadExecution();
     testStoreExecution();
+
     testBeqBneExecution();
     testRemainingBranchesExecution();
     testJumpExecution();
+
     testEcallPrintIntExecution();
     testEcallPrintCharExecution();
     testEcallHaltExecution();
+
     testGuiStepExecutesOneInstruction();
     testMemoryViewerMatchesRam();
     testFinalBinPrograms();
+
+    testCurrentPcHighlightMovesCorrectly();
+
+    
 
     CPU guiCpu;
     loadGuiDemoProgram(guiCpu);
@@ -3020,7 +3160,12 @@ int main() {
             runDelay++;
 
             if (runDelay >= 30) {
-                guiCpu.step();
+                bool executed = guiCpu.stepWithBreakpoints();
+
+                if (!executed && guiCpu.hasBreakpointHit()) {
+                    running = false;
+                }
+
                 runDelay = 0;
             }
         }
@@ -3031,6 +3176,7 @@ int main() {
     }
 
     gui.close();
+
 
     return 0;
 }

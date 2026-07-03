@@ -500,19 +500,52 @@ void Gui::formatMemoryLine(CPU& cpu, unsigned short address, char text[]) {
 }
 
 void Gui::drawMemoryPanel(CPU& cpu) {
-    char text[80];
-
-    unsigned short baseAddress = cpu.getPC() & 0xFFF0;
+    unsigned short baseAddress = getMemoryViewerBaseAddress(cpu.getPC());
 
     DrawRectangleLines(885, 60, 270, 540, GREEN);
 
     DrawText("Memory Viewer", 905, 80, 18, GREEN);
 
     DrawText("RAM around PC", 905, 115, 14, RAYWHITE);
+    DrawText("Yellow = current instruction", 905, 132, 11, YELLOW);
 
     for (int row = 0; row < 8; row++) {
-        formatMemoryLine(cpu, baseAddress + row * 8, text);
-        DrawText(text, 905, 150 + row * 28, 13, GREEN);
+        unsigned short rowAddress = baseAddress + row * 8;
+
+        drawMemoryLineWithHighlight(
+            cpu,
+            rowAddress,
+            cpu.getPC(),
+            905,
+            155 + row * 28
+        );
+    }
+}
+
+void Gui::drawMemoryLineWithHighlight(CPU& cpu, unsigned short address, unsigned short pc, int x, int y) {
+    char prefix[20];
+    char byteText[8];
+
+    sprintf(prefix, "0x%04X:", address);
+    DrawText(prefix, x, y, 13, GREEN);
+
+    int byteX = x + 72;
+
+    for (int col = 0; col < 8; col++) {
+        unsigned short byteAddress = address + col;
+        unsigned char value = cpu.getMemory().read8(byteAddress);
+
+        sprintf(byteText, "%02X", value);
+
+        if (isCurrentInstructionByte(byteAddress, pc)) {
+            DrawRectangle(byteX - 3, y - 2, 20, 17, DARKGREEN);
+            DrawText(byteText, byteX, y, 13, YELLOW);
+        }
+        else {
+            DrawText(byteText, byteX, y, 13, GREEN);
+        }
+
+        byteX = byteX + 24;
     }
 }
 
@@ -584,6 +617,22 @@ bool Gui::drawButton(int x, int y, int w, int h, const char text[]) {
     DrawText(text, x + 12, y + 8, 14, RAYWHITE);
 
     if (hover && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        return true;
+    }
+
+    return false;
+}
+
+unsigned short Gui::getMemoryViewerBaseAddress(unsigned short pc) {
+    return pc & 0xFFF0;
+}
+
+bool Gui::isCurrentInstructionByte(unsigned short address, unsigned short pc) {
+    if (address == pc) {
+        return true;
+    }
+
+    if (pc != 0xFFFF && address == (unsigned short)(pc + 1)) {
         return true;
     }
 

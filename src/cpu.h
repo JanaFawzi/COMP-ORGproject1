@@ -4,6 +4,7 @@
 #include "memory.h"
 #include "register_file.h"
 #include "instruction_decoder.h"
+#include "breakpoint_manager.h"
 
 class CPU {
 public:
@@ -38,6 +39,22 @@ public:
 
     unsigned short fetch();
     unsigned short step();
+
+    static bool isValidBreakpointAddress(unsigned short address);
+
+    bool setBreakpoint(unsigned short address);
+    bool clearBreakpoint(unsigned short address);
+    bool toggleBreakpoint(unsigned short address);
+    bool hasBreakpoint(unsigned short address);
+    void clearBreakpoints();
+    int getBreakpointCount();
+
+    bool hasBreakpointAtPC();
+    bool hasBreakpointHit();
+    unsigned short getBreakpointHitAddress();
+    void clearBreakpointHit();
+
+    bool stepWithBreakpoints();
 
     unsigned short getLastInstruction();
     int getLastHandler();
@@ -122,6 +139,10 @@ private:
     unsigned short volumePercent;
 
     bool halted;
+
+    BreakpointManager breakpointManager;
+    bool breakpointHit;
+    unsigned short breakpointHitAddress;
 
     void dispatch(DecodedInstruction instruction);
 
