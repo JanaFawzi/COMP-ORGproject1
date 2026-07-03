@@ -1596,6 +1596,91 @@ void testRaylibKeyboardMappingDirections() {
     printf("[PASS] Keyboard mapping directions test passed\n");
 }
 
+void testEcallPlayToneExecution() {
+    CPU cpu;
+
+    unsigned short toneWord = makeSys(0x040);
+
+    assert(CPU::isValidTone(440, 100) == true);
+    assert(CPU::isValidTone(CPU::MIN_TONE_FREQUENCY, 1) == true);
+    assert(CPU::isValidTone(CPU::MAX_TONE_FREQUENCY, CPU::MAX_TONE_DURATION_MS) == true);
+
+    assert(CPU::isValidTone(0, 100) == false);
+    assert(CPU::isValidTone(19, 100) == false);
+    assert(CPU::isValidTone(20001, 100) == false);
+    assert(CPU::isValidTone(440, 0) == false);
+    assert(CPU::isValidTone(440, 5001) == false);
+
+    assert(cpu.hasPendingTone() == false);
+    assert(cpu.getToneRequestId() == 0);
+
+    cpu.setPC(0x7000);
+    cpu.getRegisters().setRegister(6, 440);
+    cpu.getRegisters().setRegister(7, 120);
+    cpu.getMemory().write16(0x7000, toneWord);
+    cpu.step();
+
+    assert(cpu.hasPendingTone() == true);
+    assert(cpu.getToneFrequency() == 440);
+    assert(cpu.getToneDurationMs() == 120);
+    assert(cpu.getToneRequestId() == 1);
+    assert(cpu.getPC() == 0x7002);
+    assert(cpu.getLastHandler() == ZX16::SYS_TYPE);
+
+    cpu.clearToneRequest();
+
+    assert(cpu.hasPendingTone() == false);
+    assert(cpu.getToneFrequency() == 0);
+    assert(cpu.getToneDurationMs() == 0);
+    assert(cpu.getToneRequestId() == 1);
+
+    cpu.setPC(0x7002);
+    cpu.getRegisters().setRegister(6, 880);
+    cpu.getRegisters().setRegister(7, 250);
+    cpu.getMemory().write16(0x7002, toneWord);
+    cpu.step();
+
+    assert(cpu.hasPendingTone() == true);
+    assert(cpu.getToneFrequency() == 880);
+    assert(cpu.getToneDurationMs() == 250);
+    assert(cpu.getToneRequestId() == 2);
+    assert(cpu.getPC() == 0x7004);
+
+    cpu.clearToneRequest();
+
+    cpu.setPC(0x7004);
+    cpu.getRegisters().setRegister(6, 0);
+    cpu.getRegisters().setRegister(7, 100);
+    cpu.getMemory().write16(0x7004, toneWord);
+    cpu.step();
+
+    assert(cpu.hasPendingTone() == false);
+    assert(cpu.getToneRequestId() == 2);
+    assert(cpu.getPC() == 0x7006);
+
+    cpu.setPC(0x7006);
+    cpu.getRegisters().setRegister(6, 440);
+    cpu.getRegisters().setRegister(7, 0);
+    cpu.getMemory().write16(0x7006, toneWord);
+    cpu.step();
+
+    assert(cpu.hasPendingTone() == false);
+    assert(cpu.getToneRequestId() == 2);
+    assert(cpu.getPC() == 0x7008);
+
+    cpu.requestTone(1000, 50);
+    assert(cpu.hasPendingTone() == true);
+    assert(cpu.getToneRequestId() == 3);
+
+    cpu.reset();
+
+    assert(cpu.hasPendingTone() == false);
+    assert(cpu.getToneFrequency() == 0);
+    assert(cpu.getToneDurationMs() == 0);
+    assert(cpu.getToneRequestId() == 0);
+
+    printf("[PASS] ECALL play_tone test passed\n");
+}
 
 void testRegisterFile() {
     RegisterFile registers;
@@ -2487,6 +2572,7 @@ int main() {
     testEcallRandomXorshiftExecution();
     testKeyboardEcallDetectKeyPress();
     testRaylibKeyboardMappingDirections();
+    testEcallPlayToneExecution();
     testRegisterFile();
     testCPUReset();
     testProgramLoader();

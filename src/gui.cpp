@@ -4,6 +4,12 @@
 #include "raylib.h"
 
 #include <stdio.h>
+#include <math.h>
+
+static bool guiAudioReady = false;
+static bool guiToneLoaded = false;
+static Sound guiToneSound;
+static unsigned int guiLastToneRequestId = 0;
 
 Gui::Gui() {
     width = 1180;
@@ -66,6 +72,10 @@ unsigned short Gui::mapRaylibKeyToZx16(int raylibKey) {
 
 void Gui::open() {
     InitWindow(width, height, "ZX16 Simulator");
+
+    InitAudioDevice();
+    guiAudioReady = IsAudioDeviceReady();
+
     SetTargetFPS(getTargetFps());
 }
 
@@ -87,6 +97,7 @@ GuiAction Gui::draw(
     ClearBackground(BLACK);
 
     updateKeyboardFromRaylib(cpu);
+    updateAudioFromCpu(cpu);
 
     DrawText("ZX16 Simulator", 490, 15, 22, RAYWHITE);
 
@@ -140,6 +151,88 @@ void Gui::updateKeyboardFromRaylib(CPU& cpu) {
     }
 
     cpu.setKeyboardKey(keyCode);
+}
+
+void Gui::updateAudioFromCpu(CPU& cpu) {
+    if (!cpu.hasPendingTone()) {
+        return;
+    }
+
+    if (cpu.getToneRequestId() == guiLastToneRequestId) {
+        cpu.clearToneRequest();
+        return;
+    }
+
+    playTone(cpu.getToneFrequency(), cpu.getToneDurationMs());
+
+    guiLastToneRequestId = cpu.getToneRequestId();
+
+    cpu.clearToneRequest();
+}
+
+bool Gui::playTone(unsigned short frequency, unsigned short durationMs) {
+    if (!guiAudioReady) {
+        return false;
+    }
+
+    if (!CPU::isValidTone(frequency, durationMs)) {
+        return false;
+    }
+
+    if (guiToneLoaded) {
+        UnloadSound(guiToneSound);
+        guiToneLoaded = false;
+    }
+
+    const int sampleRate = 44100;
+    int sampleCount = (sampleRate * durationMs) / 1000;
+
+    if (sampleCount <= 0) {
+        return false;
+    }
+
+    short* samples = new short[sampleCount];
+
+    double pi = 3.14159265358979323846;
+    double amplitude = 28000.0;
+    int fadeSamples = sampleRate / 100;
+
+    if (fadeSamples * 2 > sampleCount) {
+        fadeSamples = sampleCount / 2;
+    }
+
+    for (int i = 0; i < sampleCount; i++) {
+        double t = (double)i / (double)sampleRate;
+        double envelope = 1.0;
+
+        if (fadeSamples > 0 && i < fadeSamples) {
+            envelope = (double)i / (double)fadeSamples;
+        }
+        else if (fadeSamples > 0 && i >= sampleCount - fadeSamples) {
+            envelope = (double)(sampleCount - i - 1) / (double)fadeSamples;
+        }
+
+        double value = sin(2.0 * pi * (double)frequency * t);
+
+        samples[i] = (short)(value * amplitude * envelope);
+    }
+
+    Wave wave;
+
+    wave.frameCount = sampleCount;
+    wave.sampleRate = sampleRate;
+    wave.sampleSize = 16;
+    wave.channels = 1;
+    wave.data = samples;
+
+    guiToneSound = LoadSoundFromWave(wave);
+    guiToneLoaded = true;
+
+    delete[] samples;
+
+    PlaySound(guiToneSound);
+
+    return true;
 }
 
 void Gui::drawStatusPanel(
@@ -372,5 +465,15 @@ bool Gui::drawButton(int x, int y, int w, int h, const char text[]) {
 }
 
 void Gui::close() {
+    if (guiToneLoaded) {
+        UnloadSound(guiToneSound);
+        guiToneLoaded = false;
+    }
+
+    if (guiAudioReady) {
+        CloseAudioDevice();
+        guiAudioReady = false;
+    }
+
     CloseWindow();
 }

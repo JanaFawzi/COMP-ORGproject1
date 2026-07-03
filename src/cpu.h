@@ -18,6 +18,10 @@ public:
     static constexpr unsigned short ZX16_KEY_ENTER = 6;
     static constexpr unsigned short ZX16_KEY_ESCAPE = 7;
 
+    static constexpr unsigned short MIN_TONE_FREQUENCY = 20;
+    static constexpr unsigned short MAX_TONE_FREQUENCY = 20000;
+    static constexpr unsigned short MAX_TONE_DURATION_MS = 5000;
+
     CPU();
 
     void reset();
@@ -55,6 +59,15 @@ public:
     bool setKeyboardKey(unsigned short keyCode);
     void clearKeyboardKey();
 
+    static bool isValidTone(unsigned short frequency, unsigned short durationMs);
+
+    bool requestTone(unsigned short frequency, unsigned short durationMs);
+    bool hasPendingTone();
+    unsigned short getToneFrequency();
+    unsigned short getToneDurationMs();
+    unsigned int getToneRequestId();
+    void clearToneRequest();
+
     bool isHalted();
 
 private:
@@ -77,6 +90,11 @@ private:
 
     unsigned short rngState;
     unsigned short keyboardKey;
+
+    unsigned short toneFrequency;
+    unsigned short toneDurationMs;
+    bool tonePending;
+    unsigned int toneRequestId;
 
     bool halted;
 

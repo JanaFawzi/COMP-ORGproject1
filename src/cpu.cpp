@@ -20,6 +20,11 @@ void CPU::reset() {
     resetRng();
     clearKeyboardKey();
 
+    toneFrequency = 0;
+    toneDurationMs = 0;
+    tonePending = false;
+    toneRequestId = 0;
+
     halted = false;
 }
 
@@ -169,6 +174,61 @@ bool CPU::setKeyboardKey(unsigned short keyCode) {
 
 void CPU::clearKeyboardKey() {
     keyboardKey = ZX16_KEY_NONE;
+}
+
+bool CPU::isValidTone(unsigned short frequency, unsigned short durationMs) {
+    if (frequency < MIN_TONE_FREQUENCY) {
+        return false;
+    }
+
+    if (frequency > MAX_TONE_FREQUENCY) {
+        return false;
+    }
+
+    if (durationMs == 0) {
+        return false;
+    }
+
+    if (durationMs > MAX_TONE_DURATION_MS) {
+        return false;
+    }
+
+    return true;
+}
+
+bool CPU::requestTone(unsigned short frequency, unsigned short durationMs) {
+    if (!isValidTone(frequency, durationMs)) {
+        return false;
+    }
+
+    toneFrequency = frequency;
+    toneDurationMs = durationMs;
+    tonePending = true;
+    toneRequestId++;
+
+    return true;
+}
+
+bool CPU::hasPendingTone() {
+    return tonePending;
+}
+
+unsigned short CPU::getToneFrequency() {
+    return toneFrequency;
+}
+
+unsigned short CPU::getToneDurationMs() {
+    return toneDurationMs;
+}
+
+unsigned int CPU::getToneRequestId() {
+    return toneRequestId;
+}
+
+void CPU::clearToneRequest() {
+    toneFrequency = 0;
+    toneDurationMs = 0;
+    tonePending = false;
 }
 
 bool CPU::isHalted() {
@@ -665,6 +725,13 @@ void CPU::handleSysType(DecodedInstruction instruction) {
 
     if (instruction.service == 0x030) {
         registers.setRegister(6, keyboardKey);
+    }
+
+    if (instruction.service == 0x040) {
+        unsigned short frequency = registers.getRegister(6);
+        unsigned short durationMs = registers.getRegister(7);
+
+        requestTone(frequency, durationMs);
     }
 
     if (instruction.service == 0x3FF) {

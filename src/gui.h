@@ -44,6 +44,9 @@ private:
 
     void updateKeyboardFromRaylib(CPU& cpu);
 
+    void updateAudioFromCpu(CPU& cpu);
+    bool playTone(unsigned short frequency, unsigned short durationMs);
+
     void drawStatusPanel(
         const char testStatus[],
         int frameNumber,
