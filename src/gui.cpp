@@ -154,6 +154,11 @@ void Gui::updateKeyboardFromRaylib(CPU& cpu) {
 }
 
 void Gui::updateAudioFromCpu(CPU& cpu) {
+    if (guiAudioReady) {
+        float volume = (float)cpu.getVolumePercent() / 100.0f;
+        SetMasterVolume(volume);
+    }
+
     if (!cpu.hasPendingTone()) {
         return;
     }
@@ -248,6 +253,7 @@ void Gui::drawStatusPanel(
     char fpsText[40];
     char frameTimeText[40];
     char keyText[40];
+    char volumeText[40];
 
     sprintf(frameText, "Frame update: %d", frameNumber);
     sprintf(pcText, "PC: 0x%04X", cpu.getPC());
@@ -255,6 +261,7 @@ void Gui::drawStatusPanel(
     sprintf(fpsText, "Target FPS: %d", getTargetFps());
     sprintf(frameTimeText, "Target frame: %.2f ms", getTargetFrameTimeMs());
     sprintf(keyText, "Keyboard key: %d", cpu.getKeyboardKey());
+    sprintf(volumeText, "Volume: %d%%", cpu.getVolumePercent());
 
     if (cpu.isHalted()) {
         sprintf(stateText, "CPU state: HALTED");
@@ -285,6 +292,7 @@ void Gui::drawStatusPanel(
     DrawText(fpsText, 45, 425, 14, GREEN);
     DrawText(frameTimeText, 45, 450, 14, GREEN);
     DrawText(keyText, 45, 475, 14, GREEN);
+    DrawText(volumeText, 45, 500, 14, GREEN);
 }
 
 void Gui::drawConsolePanel(const char consoleText[]) {

@@ -22,6 +22,9 @@ public:
     static constexpr unsigned short MAX_TONE_FREQUENCY = 20000;
     static constexpr unsigned short MAX_TONE_DURATION_MS = 5000;
 
+    static constexpr unsigned short DEFAULT_VOLUME_PERCENT = 100;
+    static constexpr unsigned short MAX_VOLUME_PERCENT = 100;
+
     CPU();
 
     void reset();
@@ -68,6 +71,11 @@ public:
     unsigned int getToneRequestId();
     void clearToneRequest();
 
+    static bool isValidVolumePercent(unsigned short volumePercent);
+    unsigned short getVolumePercent();
+    bool setVolumePercent(unsigned short volumePercent);
+    void resetVolume();
+
     bool isHalted();
 
 private:
@@ -96,6 +104,8 @@ private:
     bool tonePending;
     unsigned int toneRequestId;
 
+    unsigned short volumePercent;
+    
     bool halted;
 
     void dispatch(DecodedInstruction instruction);

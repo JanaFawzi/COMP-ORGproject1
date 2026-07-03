@@ -25,6 +25,8 @@ void CPU::reset() {
     tonePending = false;
     toneRequestId = 0;
 
+    resetVolume();
+
     halted = false;
 }
 
@@ -229,6 +231,32 @@ void CPU::clearToneRequest() {
     toneFrequency = 0;
     toneDurationMs = 0;
     tonePending = false;
+}
+
+bool CPU::isValidVolumePercent(unsigned short volumePercentValue) {
+    if (volumePercentValue > MAX_VOLUME_PERCENT) {
+        return false;
+    }
+
+    return true;
+}
+
+unsigned short CPU::getVolumePercent() {
+    return volumePercent;
+}
+
+bool CPU::setVolumePercent(unsigned short volumePercentValue) {
+    if (!isValidVolumePercent(volumePercentValue)) {
+        return false;
+    }
+
+    volumePercent = volumePercentValue;
+
+    return true;
+}
+
+void CPU::resetVolume() {
+    volumePercent = DEFAULT_VOLUME_PERCENT;
 }
 
 bool CPU::isHalted() {
@@ -732,6 +760,12 @@ void CPU::handleSysType(DecodedInstruction instruction) {
         unsigned short durationMs = registers.getRegister(7);
 
         requestTone(frequency, durationMs);
+    }
+    
+    if (instruction.service == 0x041) {
+        unsigned short newVolume = registers.getRegister(6);
+
+        setVolumePercent(newVolume);
     }
 
     if (instruction.service == 0x3FF) {

@@ -1682,6 +1682,79 @@ void testEcallPlayToneExecution() {
     printf("[PASS] ECALL play_tone test passed\n");
 }
 
+void testEcallSetVolumeExecution() {
+    CPU cpu;
+
+    unsigned short volumeWord = makeSys(0x041);
+
+    assert(CPU::isValidVolumePercent(0) == true);
+    assert(CPU::isValidVolumePercent(50) == true);
+    assert(CPU::isValidVolumePercent(100) == true);
+    assert(CPU::isValidVolumePercent(101) == false);
+    assert(CPU::isValidVolumePercent(0xFFFF) == false);
+
+    assert(cpu.getVolumePercent() == CPU::DEFAULT_VOLUME_PERCENT);
+
+    assert(cpu.setVolumePercent(75) == true);
+    assert(cpu.getVolumePercent() == 75);
+
+    assert(cpu.setVolumePercent(0) == true);
+    assert(cpu.getVolumePercent() == 0);
+
+    assert(cpu.setVolumePercent(100) == true);
+    assert(cpu.getVolumePercent() == 100);
+
+    assert(cpu.setVolumePercent(101) == false);
+    assert(cpu.getVolumePercent() == 100);
+
+    cpu.setPC(0x7200);
+    cpu.getRegisters().setRegister(6, 25);
+    cpu.getMemory().write16(0x7200, volumeWord);
+    cpu.step();
+
+    assert(cpu.getVolumePercent() == 25);
+    assert(cpu.getPC() == 0x7202);
+    assert(cpu.getLastHandler() == ZX16::SYS_TYPE);
+
+    cpu.setPC(0x7202);
+    cpu.getRegisters().setRegister(6, 0);
+    cpu.getMemory().write16(0x7202, volumeWord);
+    cpu.step();
+
+    assert(cpu.getVolumePercent() == 0);
+    assert(cpu.getPC() == 0x7204);
+
+    cpu.setPC(0x7204);
+    cpu.getRegisters().setRegister(6, 100);
+    cpu.getMemory().write16(0x7204, volumeWord);
+    cpu.step();
+
+    assert(cpu.getVolumePercent() == 100);
+    assert(cpu.getPC() == 0x7206);
+
+    cpu.setPC(0x7206);
+    cpu.getRegisters().setRegister(6, 150);
+    cpu.getMemory().write16(0x7206, volumeWord);
+    cpu.step();
+
+    assert(cpu.getVolumePercent() == 100);
+    assert(cpu.getPC() == 0x7208);
+
+    cpu.setVolumePercent(30);
+    assert(cpu.getVolumePercent() == 30);
+
+    cpu.resetVolume();
+    assert(cpu.getVolumePercent() == CPU::DEFAULT_VOLUME_PERCENT);
+
+    cpu.setVolumePercent(40);
+    assert(cpu.getVolumePercent() == 40);
+
+    cpu.reset();
+    assert(cpu.getVolumePercent() == CPU::DEFAULT_VOLUME_PERCENT);
+
+    printf("[PASS] ECALL set_volume test passed\n");
+}
+
 void testRegisterFile() {
     RegisterFile registers;
 
@@ -2573,6 +2646,7 @@ int main() {
     testKeyboardEcallDetectKeyPress();
     testRaylibKeyboardMappingDirections();
     testEcallPlayToneExecution();
+    testEcallSetVolumeExecution();
     testRegisterFile();
     testCPUReset();
     testProgramLoader();
