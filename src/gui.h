@@ -25,6 +25,9 @@ public:
 
     static unsigned short getMemoryViewerBaseAddress(unsigned short pc);
     static bool isCurrentInstructionByte(unsigned short address, unsigned short pc);
+
+    static void disassembleInstruction(unsigned short word, char text[], int textSize);
+    static void buildCurrentInstructionText(CPU& cpu, char text[], int textSize);
     
     void open();
 
@@ -77,6 +80,8 @@ private:
     bool drawButton(int x, int y, int w, int h, const char text[]);
 
     void drawConsoleTextLines(const char visibleText[], int x, int y);
+
+    void drawDisassemblyPanel(CPU& cpu);
 };
 
 #endif

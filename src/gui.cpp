@@ -160,6 +160,7 @@ GuiAction Gui::draw(
     drawStatusPanel(testStatus, frameNumber, running, cpu);
     drawConsolePanel(consoleText);
     action = drawControlPanel(running, cpu.isHalted());
+    drawDisassemblyPanel(cpu);
     drawRegisterPanel(cpu);
     drawMemoryPanel(cpu);
     drawGraphicsPanel(cpu);
@@ -167,6 +168,21 @@ GuiAction Gui::draw(
     EndDrawing();
 
     return action;
+}
+
+void Gui::drawDisassemblyPanel(CPU& cpu) {
+    char instructionText[128];
+
+    buildCurrentInstructionText(cpu, instructionText, 128);
+
+    DrawRectangleLines(315, 350, 270, 75, GREEN);
+
+    DrawText("Disassembly", 335, 365, 18, GREEN);
+
+    DrawRectangle(335, 395, 230, 22, DARKGRAY);
+    DrawRectangleLines(335, 395, 230, 22, GRAY);
+
+    DrawText(instructionText, 342, 401, 10, YELLOW);
 }
 
 void Gui::updateKeyboardFromRaylib(CPU& cpu) {
@@ -207,6 +223,269 @@ void Gui::updateKeyboardFromRaylib(CPU& cpu) {
     }
 
     cpu.setKeyboardKey(keyCode);
+}
+
+static const char* getSyscallDisplayName(unsigned short service) {
+    if (service == 0x000) {
+        return "print_int";
+    }
+
+    if (service == 0x001) {
+        return "print_char";
+    }
+
+    if (service == 0x010) {
+        return "read_string";
+    }
+
+    if (service == 0x011) {
+        return "read_int";
+    }
+
+    if (service == 0x012) {
+        return "print_string";
+    }
+
+    if (service == 0x020) {
+        return "seed_rng";
+    }
+
+    if (service == 0x021) {
+        return "random";
+    }
+
+    if (service == 0x030) {
+        return "keyboard";
+    }
+
+    if (service == 0x040) {
+        return "play_tone";
+    }
+
+    if (service == 0x041) {
+        return "set_volume";
+    }
+
+    if (service == 0x042) {
+        return "stop_audio";
+    }
+
+    if (service == 0x050) {
+        return "regs_dump";
+    }
+
+    if (service == 0x051) {
+        return "mem_dump";
+    }
+
+    if (service == 0x3FF) {
+        return "halt";
+    }
+
+    return "unknown_sys";
+}
+
+void Gui::disassembleInstruction(unsigned short word, char text[], int textSize) {
+    if (text == 0 || textSize <= 0) {
+        return;
+    }
+
+    text[0] = '\0';
+
+    InstructionDecoder decoder;
+    DecodedInstruction instruction = decoder.decode(word);
+
+    if (instruction.opcode == 0) {
+        if (instruction.funct4 == 0x0) {
+            snprintf(text, textSize, "R add x%d,x%d", instruction.rd, instruction.rs2);
+            return;
+        }
+
+        if (instruction.funct4 == 0x1) {
+            snprintf(text, textSize, "R sub x%d,x%d", instruction.rd, instruction.rs2);
+            return;
+        }
+
+        if (instruction.funct4 == 0x4) {
+            snprintf(text, textSize, "R sll x%d,x%d", instruction.rd, instruction.rs2);
+            return;
+        }
+
+        if (instruction.funct4 == 0x5) {
+            snprintf(text, textSize, "R srl x%d,x%d", instruction.rd, instruction.rs2);
+            return;
+        }
+
+        if (instruction.funct4 == 0x6) {
+            snprintf(text, textSize, "R sra x%d,x%d", instruction.rd, instruction.rs2);
+            return;
+        }
+
+        if (instruction.funct4 == 0x7) {
+            snprintf(text, textSize, "R or x%d,x%d", instruction.rd, instruction.rs2);
+            return;
+        }
+
+        if (instruction.funct4 == 0x8) {
+            snprintf(text, textSize, "R and x%d,x%d", instruction.rd, instruction.rs2);
+            return;
+        }
+
+        if (instruction.funct4 == 0x9) {
+            snprintf(text, textSize, "R xor x%d,x%d", instruction.rd, instruction.rs2);
+            return;
+        }
+
+        if (instruction.funct4 == 0xB) {
+            snprintf(text, textSize, "R jr x%d", instruction.rd);
+            return;
+        }
+
+        if (instruction.funct4 == 0xC) {
+            snprintf(text, textSize, "R jalr x%d,x%d", instruction.rd, instruction.rs2);
+            return;
+        }
+
+        snprintf(text, textSize, "R unknown");
+        return;
+    }
+
+    if (instruction.opcode == 1) {
+        if (instruction.func3 == 0x0) {
+            snprintf(text, textSize, "I addi x%d,%d", instruction.rd, instruction.immediate);
+            return;
+        }
+
+        if (instruction.func3 == 0x4) {
+            snprintf(text, textSize, "I ori x%d", instruction.rd);
+            return;
+        }
+
+        if (instruction.func3 == 0x5) {
+            snprintf(text, textSize, "I andi x%d,%d", instruction.rd, instruction.immediate);
+            return;
+        }
+
+        if (instruction.func3 == 0x6) {
+            snprintf(text, textSize, "I xori x%d,%d", instruction.rd, instruction.immediate);
+            return;
+        }
+
+        if (instruction.func3 == 0x7) {
+            snprintf(text, textSize, "I li x%d,%d", instruction.rd, instruction.immediate);
+            return;
+        }
+
+        snprintf(text, textSize, "I unknown");
+        return;
+    }
+
+    if (instruction.opcode == 2) {
+        if (instruction.func3 == 0x0) {
+            snprintf(text, textSize, "B beq x%d,x%d,%d", instruction.rs1, instruction.rs2, instruction.immediate);
+            return;
+        }
+
+        if (instruction.func3 == 0x1) {
+            snprintf(text, textSize, "B bne x%d,x%d,%d", instruction.rs1, instruction.rs2, instruction.immediate);
+            return;
+        }
+
+        if (instruction.func3 == 0x2) {
+            snprintf(text, textSize, "B bz x%d,%d", instruction.rs1, instruction.immediate);
+            return;
+        }
+
+        if (instruction.func3 == 0x3) {
+            snprintf(text, textSize, "B bnz x%d,%d", instruction.rs1, instruction.immediate);
+            return;
+        }
+
+        if (instruction.func3 == 0x4) {
+            snprintf(text, textSize, "B blt x%d,x%d,%d", instruction.rs1, instruction.rs2, instruction.immediate);
+            return;
+        }
+
+        if (instruction.func3 == 0x5) {
+            snprintf(text, textSize, "B bge x%d,x%d,%d", instruction.rs1, instruction.rs2, instruction.immediate);
+            return;
+        }
+
+        if (instruction.func3 == 0x6) {
+            snprintf(text, textSize, "B bltu x%d,x%d,%d", instruction.rs1, instruction.rs2, instruction.immediate);
+            return;
+        }
+
+        if (instruction.func3 == 0x7) {
+            snprintf(text, textSize, "B bgeu x%d,x%d,%d", instruction.rs1, instruction.rs2, instruction.immediate);
+            return;
+        }
+
+        snprintf(text, textSize, "B unknown");
+        return;
+    }
+
+    if (instruction.opcode == 3) {
+        if (instruction.func3 == 0x0) {
+            snprintf(text, textSize, "S sb x%d,%d(x%d)", instruction.rs2, instruction.immediate, instruction.rs1);
+            return;
+        }
+
+        if (instruction.func3 == 0x1) {
+            snprintf(text, textSize, "S sw x%d,%d(x%d)", instruction.rs2, instruction.immediate, instruction.rs1);
+            return;
+        }
+
+        snprintf(text, textSize, "S unknown");
+        return;
+    }
+
+    if (instruction.opcode == 4) {
+        if (instruction.func3 == 0x0) {
+            snprintf(text, textSize, "L lb x%d,%d(x%d)", instruction.rd, instruction.immediate, instruction.rs1);
+            return;
+        }
+
+        if (instruction.func3 == 0x1) {
+            snprintf(text, textSize, "L lw x%d,%d(x%d)", instruction.rd, instruction.immediate, instruction.rs1);
+            return;
+        }
+
+        if (instruction.func3 == 0x4) {
+            snprintf(text, textSize, "L lbu x%d,%d(x%d)", instruction.rd, instruction.immediate, instruction.rs1);
+            return;
+        }
+
+        snprintf(text, textSize, "L unknown");
+        return;
+    }
+
+    if (instruction.opcode == 5) {
+        if (instruction.linkFlag == 1) {
+            snprintf(text, textSize, "J jal x%d,%d", instruction.rd, instruction.immediate);
+            return;
+        }
+
+        snprintf(text, textSize, "J j %d", instruction.immediate);
+        return;
+    }
+
+    if (instruction.opcode == 6) {
+        snprintf(text, textSize, "U type");
+        return;
+    }
+
+    if (instruction.opcode == 7) {
+        snprintf(
+            text,
+            textSize,
+            "SYS %s",
+            getSyscallDisplayName(instruction.service)
+        );
+        return;
+    }
+
+    snprintf(text, textSize, "unknown");
 }
 
 void Gui::updateAudioFromCpu(CPU& cpu) {
@@ -314,6 +593,30 @@ bool Gui::stopAudio() {
     }
 
     return false;
+}
+
+void Gui::buildCurrentInstructionText(CPU& cpu, char text[], int textSize) {
+    if (text == 0 || textSize <= 0) {
+        return;
+    }
+
+    text[0] = '\0';
+
+    unsigned short pc = cpu.getPC();
+    unsigned short word = cpu.getMemory().read16(pc);
+
+    char disassembly[80];
+
+    disassembleInstruction(word, disassembly, 80);
+
+    snprintf(
+        text,
+        textSize,
+        "0x%04X: %04X  %s",
+        pc,
+        word,
+        disassembly
+    );
 }
 
 void Gui::drawStatusPanel(
@@ -556,12 +859,12 @@ void Gui::drawGraphicsPanel(CPU& cpu) {
     Color color;
 
     int panelX = 315;
-    int panelY = 380;
+    int panelY = 440;
     int panelW = 270;
-    int panelH = 220;
+    int panelH = 185;
 
     int previewX = 335;
-    int previewY = 450;
+    int previewY = 495;
 
     int previewScale = 2;
     int previewW = GraphicsMemory::SCREEN_WIDTH / previewScale;

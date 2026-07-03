@@ -3060,6 +3060,51 @@ void testCurrentPcHighlightMovesCorrectly() {
     printf("[PASS] Current PC highlight moves correctly test passed\n");
 }
 
+void testCurrentInstructionDisplayed() {
+    CPU cpu;
+
+    char text[128];
+    char expected[128];
+
+    unsigned short randomWord = makeSys(0x021);
+    unsigned short regsDumpWord = makeSys(0x050);
+    unsigned short haltWord = makeSys(0x3FF);
+
+    char disassembled[80];
+
+    Gui::disassembleInstruction(randomWord, disassembled, 80);
+    assert(strcmp(disassembled, "SYS random") == 0);
+
+    Gui::disassembleInstruction(regsDumpWord, disassembled, 80);
+    assert(strcmp(disassembled, "SYS regs_dump") == 0);
+
+    Gui::disassembleInstruction(haltWord, disassembled, 80);
+    assert(strcmp(disassembled, "SYS halt") == 0);
+
+    cpu.setPC(0x7900);
+    cpu.getMemory().write16(0x7900, randomWord);
+    cpu.getMemory().write16(0x7902, regsDumpWord);
+    cpu.getMemory().write16(0x7904, haltWord);
+
+    Gui::buildCurrentInstructionText(cpu, text, 128);
+    sprintf(expected, "0x7900: %04X  SYS random", randomWord);
+    assert(strcmp(text, expected) == 0);
+
+    cpu.step();
+
+    Gui::buildCurrentInstructionText(cpu, text, 128);
+    sprintf(expected, "0x7902: %04X  SYS regs_dump", regsDumpWord);
+    assert(strcmp(text, expected) == 0);
+
+    cpu.step();
+
+    Gui::buildCurrentInstructionText(cpu, text, 128);
+    sprintf(expected, "0x7904: %04X  SYS halt", haltWord);
+    assert(strcmp(text, expected) == 0);
+
+    printf("[PASS] Current instruction displayed test passed\n");
+}
+
 int main() {
     testMemory();
     testGraphicsMemoryManager();
@@ -3130,6 +3175,7 @@ int main() {
     testFinalBinPrograms();
 
     testCurrentPcHighlightMovesCorrectly();
+    testCurrentInstructionDisplayed();
 
     
 
