@@ -53,6 +53,9 @@ public:
     static bool isValidPaletteIndex(int paletteIndex);
     static bool isValidTileByteOffset(int byteOffset);
 
+    static bool isValidRgb3(int value);
+    static bool isValidRgb2(int value);
+
     static int getTileMapOffset(int col, int row);
     static unsigned short getTileMapAddress(int col, int row);
     static unsigned short getTileMapAddressByOffset(int offset);
@@ -64,6 +67,19 @@ public:
     static unsigned short getTileDefinitionBase(int tileIndex);
     static unsigned short getTilePixelByteAddress(int tileIndex, int x, int y);
     static unsigned short getPaletteAddress(int paletteIndex);
+
+    static unsigned char makeRgb332(int red3, int green3, int blue2);
+    static unsigned char getRgb332Red3(unsigned char rgb332);
+    static unsigned char getRgb332Green3(unsigned char rgb332);
+    static unsigned char getRgb332Blue2(unsigned char rgb332);
+    static unsigned char expandRgb3To8(unsigned char value3);
+    static unsigned char expandRgb2To8(unsigned char value2);
+    static void expandRgb332ToRgb888(
+        unsigned char rgb332,
+        unsigned char& red8,
+        unsigned char& green8,
+        unsigned char& blue8
+    );
 
     static bool isTileMapUsedAddress(unsigned short address);
     static bool isTileMapRegionAddress(unsigned short address);
@@ -105,6 +121,18 @@ public:
 
     bool writePaletteColor(int paletteIndex, unsigned char rgb332);
     unsigned char readPaletteColor(int paletteIndex);
+    bool readPaletteColorChecked(int paletteIndex, unsigned char& rgb332);
+
+    bool writePaletteRgb(int paletteIndex, int red3, int green3, int blue2);
+    bool readPaletteRgb888(
+        int paletteIndex,
+        unsigned char& red8,
+        unsigned char& green8,
+        unsigned char& blue8
+    );
+
+    bool fillPalette(unsigned char rgb332);
+    bool clearPalette();
 
 private:
     Memory& memory;

@@ -585,6 +585,145 @@ void testTileDefinitionAccess() {
     printf("[PASS] Tile definition access test passed\n");
 }
 
+void testPaletteMemory() {
+    Memory memory;
+    GraphicsMemory graphics(memory);
+
+    unsigned char raw = 0;
+    unsigned char red8 = 0;
+    unsigned char green8 = 0;
+    unsigned char blue8 = 0;
+
+    assert(GraphicsMemory::isValidRgb3(0) == true);
+    assert(GraphicsMemory::isValidRgb3(7) == true);
+    assert(GraphicsMemory::isValidRgb3(-1) == false);
+    assert(GraphicsMemory::isValidRgb3(8) == false);
+
+    assert(GraphicsMemory::isValidRgb2(0) == true);
+    assert(GraphicsMemory::isValidRgb2(3) == true);
+    assert(GraphicsMemory::isValidRgb2(-1) == false);
+    assert(GraphicsMemory::isValidRgb2(4) == false);
+
+    assert(GraphicsMemory::makeRgb332(0, 0, 0) == 0x00);
+    assert(GraphicsMemory::makeRgb332(7, 7, 3) == 0xFF);
+    assert(GraphicsMemory::makeRgb332(5, 2, 1) == 0xA9);
+
+    assert(GraphicsMemory::makeRgb332(8, 0, 0) == 0x00);
+    assert(GraphicsMemory::makeRgb332(0, 8, 0) == 0x00);
+    assert(GraphicsMemory::makeRgb332(0, 0, 4) == 0x00);
+
+    assert(GraphicsMemory::getRgb332Red3(0xA9) == 5);
+    assert(GraphicsMemory::getRgb332Green3(0xA9) == 2);
+    assert(GraphicsMemory::getRgb332Blue2(0xA9) == 1);
+
+    assert(GraphicsMemory::getRgb332Red3(0xE3) == 7);
+    assert(GraphicsMemory::getRgb332Green3(0xE3) == 0);
+    assert(GraphicsMemory::getRgb332Blue2(0xE3) == 3);
+
+    assert(GraphicsMemory::expandRgb3To8(0) == 0x00);
+    assert(GraphicsMemory::expandRgb3To8(1) == 0x24);
+    assert(GraphicsMemory::expandRgb3To8(2) == 0x49);
+    assert(GraphicsMemory::expandRgb3To8(5) == 0xB6);
+    assert(GraphicsMemory::expandRgb3To8(7) == 0xFF);
+
+    assert(GraphicsMemory::expandRgb2To8(0) == 0x00);
+    assert(GraphicsMemory::expandRgb2To8(1) == 0x55);
+    assert(GraphicsMemory::expandRgb2To8(2) == 0xAA);
+    assert(GraphicsMemory::expandRgb2To8(3) == 0xFF);
+
+    GraphicsMemory::expandRgb332ToRgb888(0x00, red8, green8, blue8);
+    assert(red8 == 0x00);
+    assert(green8 == 0x00);
+    assert(blue8 == 0x00);
+
+    GraphicsMemory::expandRgb332ToRgb888(0xFF, red8, green8, blue8);
+    assert(red8 == 0xFF);
+    assert(green8 == 0xFF);
+    assert(blue8 == 0xFF);
+
+    GraphicsMemory::expandRgb332ToRgb888(0xA9, red8, green8, blue8);
+    assert(red8 == 0xB6);
+    assert(green8 == 0x49);
+    assert(blue8 == 0x55);
+
+    assert(graphics.writePaletteColor(0, 0x00) == true);
+    assert(graphics.writePaletteColor(1, 0xFF) == true);
+    assert(graphics.writePaletteColor(15, 0xA9) == true);
+
+    assert(memory.read8(0xFA00) == 0x00);
+    assert(memory.read8(0xFA01) == 0xFF);
+    assert(memory.read8(0xFA0F) == 0xA9);
+
+    assert(graphics.readPaletteColor(0) == 0x00);
+    assert(graphics.readPaletteColor(1) == 0xFF);
+    assert(graphics.readPaletteColor(15) == 0xA9);
+
+    raw = 0x55;
+    assert(graphics.readPaletteColorChecked(15, raw) == true);
+    assert(raw == 0xA9);
+
+    raw = 0x77;
+    assert(graphics.readPaletteColorChecked(16, raw) == false);
+    assert(raw == 0x77);
+
+    assert(graphics.writePaletteColor(16, 0xFF) == false);
+    assert(memory.read8(0xFA0F) == 0xA9);
+
+    assert(graphics.writePaletteRgb(2, 5, 2, 1) == true);
+    assert(memory.read8(0xFA02) == 0xA9);
+
+    red8 = 0;
+    green8 = 0;
+    blue8 = 0;
+
+    assert(graphics.readPaletteRgb888(2, red8, green8, blue8) == true);
+    assert(red8 == 0xB6);
+    assert(green8 == 0x49);
+    assert(blue8 == 0x55);
+
+    memory.write8(0xFA03, 0x12);
+
+    assert(graphics.writePaletteRgb(3, 8, 0, 0) == false);
+    assert(memory.read8(0xFA03) == 0x12);
+
+    assert(graphics.writePaletteRgb(3, 0, 8, 0) == false);
+    assert(memory.read8(0xFA03) == 0x12);
+
+    assert(graphics.writePaletteRgb(3, 0, 0, 4) == false);
+    assert(memory.read8(0xFA03) == 0x12);
+
+    assert(graphics.writePaletteRgb(16, 1, 1, 1) == false);
+    assert(memory.read8(0xFA0F) == 0xA9);
+
+    red8 = 0x11;
+    green8 = 0x22;
+    blue8 = 0x33;
+
+    assert(graphics.readPaletteRgb888(16, red8, green8, blue8) == false);
+    assert(red8 == 0x11);
+    assert(green8 == 0x22);
+    assert(blue8 == 0x33);
+
+    assert(graphics.fillPalette(0xE3) == true);
+
+    for (int i = 0; i < GraphicsMemory::PALETTE_SIZE; i++) {
+        assert(memory.read8(GraphicsMemory::PALETTE_BASE + i) == 0xE3);
+        assert(graphics.readPaletteColor(i) == 0xE3);
+    }
+
+    assert(graphics.clearPalette() == true);
+
+    for (int i = 0; i < GraphicsMemory::PALETTE_SIZE; i++) {
+        assert(memory.read8(GraphicsMemory::PALETTE_BASE + i) == 0x00);
+        assert(graphics.readPaletteColor(i) == 0x00);
+    }
+
+    assert(memory.read8(0xFA10) == 0x00);
+
+    printf("[PASS] Palette memory test passed\n");
+}
+
+
 void testRegisterFile() {
     RegisterFile registers;
 

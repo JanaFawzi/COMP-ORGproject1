@@ -60,6 +60,22 @@ bool GraphicsMemory::isValidTileByteOffset(int byteOffset) {
     return true;
 }
 
+bool GraphicsMemory::isValidRgb3(int value) {
+    if (value < 0 || value > 7) {
+        return false;
+    }
+
+    return true;
+}
+
+bool GraphicsMemory::isValidRgb2(int value) {
+    if (value < 0 || value > 3) {
+        return false;
+    }
+
+    return true;
+}
+
 int GraphicsMemory::getTileMapOffset(int col, int row) {
     if (!isValidTileCell(col, row)) {
         return -1;
@@ -144,6 +160,57 @@ unsigned short GraphicsMemory::getPaletteAddress(int paletteIndex) {
     }
 
     return (unsigned short)(PALETTE_BASE + paletteIndex);
+}
+
+unsigned char GraphicsMemory::makeRgb332(int red3, int green3, int blue2) {
+    if (!isValidRgb3(red3)) {
+        return 0;
+    }
+
+    if (!isValidRgb3(green3)) {
+        return 0;
+    }
+
+    if (!isValidRgb2(blue2)) {
+        return 0;
+    }
+
+    return (unsigned char)(((red3 & 0x07) << 5) | ((green3 & 0x07) << 2) | (blue2 & 0x03));
+}
+
+unsigned char GraphicsMemory::getRgb332Red3(unsigned char rgb332) {
+    return (rgb332 >> 5) & 0x07;
+}
+
+unsigned char GraphicsMemory::getRgb332Green3(unsigned char rgb332) {
+    return (rgb332 >> 2) & 0x07;
+}
+
+unsigned char GraphicsMemory::getRgb332Blue2(unsigned char rgb332) {
+    return rgb332 & 0x03;
+}
+
+unsigned char GraphicsMemory::expandRgb3To8(unsigned char value3) {
+    value3 = value3 & 0x07;
+
+    return (unsigned char)((value3 << 5) | (value3 << 2) | (value3 >> 1));
+}
+
+unsigned char GraphicsMemory::expandRgb2To8(unsigned char value2) {
+    value2 = value2 & 0x03;
+
+    return (unsigned char)((value2 << 6) | (value2 << 4) | (value2 << 2) | value2);
+}
+
+void GraphicsMemory::expandRgb332ToRgb888(
+    unsigned char rgb332,
+    unsigned char& red8,
+    unsigned char& green8,
+    unsigned char& blue8
+) {
+    red8 = expandRgb3To8(getRgb332Red3(rgb332));
+    green8 = expandRgb3To8(getRgb332Green3(rgb332));
+    blue8 = expandRgb2To8(getRgb332Blue2(rgb332));
 }
 
 bool GraphicsMemory::isTileMapUsedAddress(unsigned short address) {
@@ -524,11 +591,68 @@ bool GraphicsMemory::writePaletteColor(int paletteIndex, unsigned char rgb332) {
 unsigned char GraphicsMemory::readPaletteColor(int paletteIndex) {
     unsigned char value = 0;
 
-    if (!isValidPaletteIndex(paletteIndex)) {
+    if (!readPaletteColorChecked(paletteIndex, value)) {
         return 0;
     }
 
-    readVram8(getPaletteAddress(paletteIndex), value);
-
     return value;
+}
+
+bool GraphicsMemory::readPaletteColorChecked(int paletteIndex, unsigned char& rgb332) {
+    if (!isValidPaletteIndex(paletteIndex)) {
+        return false;
+    }
+
+    return readVram8(getPaletteAddress(paletteIndex), rgb332);
+}
+
+bool GraphicsMemory::writePaletteRgb(int paletteIndex, int red3, int green3, int blue2) {
+    if (!isValidPaletteIndex(paletteIndex)) {
+        return false;
+    }
+
+    if (!isValidRgb3(red3)) {
+        return false;
+    }
+
+    if (!isValidRgb3(green3)) {
+        return false;
+    }
+
+    if (!isValidRgb2(blue2)) {
+        return false;
+    }
+
+    return writePaletteColor(paletteIndex, makeRgb332(red3, green3, blue2));
+}
+
+bool GraphicsMemory::readPaletteRgb888(
+    int paletteIndex,
+    unsigned char& red8,
+    unsigned char& green8,
+    unsigned char& blue8
+) {
+    unsigned char rgb332 = 0;
+
+    if (!readPaletteColorChecked(paletteIndex, rgb332)) {
+        return false;
+    }
+
+    expandRgb332ToRgb888(rgb332, red8, green8, blue8);
+
+    return true;
+}
+
+bool GraphicsMemory::fillPalette(unsigned char rgb332) {
+    for (int i = 0; i < PALETTE_SIZE; i++) {
+        if (!writePaletteColor(i, rgb332)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool GraphicsMemory::clearPalette() {
+    return fillPalette(0);
 }
