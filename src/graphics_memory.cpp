@@ -190,6 +190,16 @@ unsigned char GraphicsMemory::getRgb332Blue2(unsigned char rgb332) {
     return rgb332 & 0x03;
 }
 
+Rgb332Color GraphicsMemory::decodeRgb332(unsigned char rgb332) {
+    Rgb332Color color;
+
+    color.red3 = getRgb332Red3(rgb332);
+    color.green3 = getRgb332Green3(rgb332);
+    color.blue2 = getRgb332Blue2(rgb332);
+
+    return color;
+}
+
 unsigned char GraphicsMemory::expandRgb3To8(unsigned char value3) {
     value3 = value3 & 0x07;
 
@@ -211,6 +221,14 @@ void GraphicsMemory::expandRgb332ToRgb888(
     red8 = expandRgb3To8(getRgb332Red3(rgb332));
     green8 = expandRgb3To8(getRgb332Green3(rgb332));
     blue8 = expandRgb2To8(getRgb332Blue2(rgb332));
+}
+
+Rgb888Color GraphicsMemory::expandRgb332ToRgb888Color(unsigned char rgb332) {
+    Rgb888Color color;
+
+    expandRgb332ToRgb888(rgb332, color.red8, color.green8, color.blue8);
+
+    return color;
 }
 
 bool GraphicsMemory::isTileMapUsedAddress(unsigned short address) {
@@ -624,6 +642,30 @@ bool GraphicsMemory::writePaletteRgb(int paletteIndex, int red3, int green3, int
     }
 
     return writePaletteColor(paletteIndex, makeRgb332(red3, green3, blue2));
+}
+
+bool GraphicsMemory::readPaletteRgb332(int paletteIndex, Rgb332Color& color) {
+    unsigned char rgb332 = 0;
+
+    if (!readPaletteColorChecked(paletteIndex, rgb332)) {
+        return false;
+    }
+
+    color = decodeRgb332(rgb332);
+
+    return true;
+}
+
+bool GraphicsMemory::readPaletteRgb888Color(int paletteIndex, Rgb888Color& color) {
+    unsigned char rgb332 = 0;
+
+    if (!readPaletteColorChecked(paletteIndex, rgb332)) {
+        return false;
+    }
+
+    color = expandRgb332ToRgb888Color(rgb332);
+
+    return true;
 }
 
 bool GraphicsMemory::readPaletteRgb888(

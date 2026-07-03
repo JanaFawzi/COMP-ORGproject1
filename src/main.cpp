@@ -723,6 +723,198 @@ void testPaletteMemory() {
     printf("[PASS] Palette memory test passed\n");
 }
 
+void testRgb332Decode() {
+    Rgb332Color color;
+
+    color = GraphicsMemory::decodeRgb332(0x00);
+    assert(color.red3 == 0);
+    assert(color.green3 == 0);
+    assert(color.blue2 == 0);
+
+    color = GraphicsMemory::decodeRgb332(0xFF);
+    assert(color.red3 == 7);
+    assert(color.green3 == 7);
+    assert(color.blue2 == 3);
+
+    color = GraphicsMemory::decodeRgb332(0xE0);
+    assert(color.red3 == 7);
+    assert(color.green3 == 0);
+    assert(color.blue2 == 0);
+
+    color = GraphicsMemory::decodeRgb332(0x1C);
+    assert(color.red3 == 0);
+    assert(color.green3 == 7);
+    assert(color.blue2 == 0);
+
+    color = GraphicsMemory::decodeRgb332(0x03);
+    assert(color.red3 == 0);
+    assert(color.green3 == 0);
+    assert(color.blue2 == 3);
+
+    color = GraphicsMemory::decodeRgb332(0xA9);
+    assert(color.red3 == 5);
+    assert(color.green3 == 2);
+    assert(color.blue2 == 1);
+
+    color = GraphicsMemory::decodeRgb332(0x92);
+    assert(color.red3 == 4);
+    assert(color.green3 == 4);
+    assert(color.blue2 == 2);
+
+    assert(GraphicsMemory::makeRgb332(color.red3, color.green3, color.blue2) == 0x92);
+
+    Memory memory;
+    GraphicsMemory graphics(memory);
+
+    assert(graphics.writePaletteColor(0, 0x00) == true);
+    assert(graphics.writePaletteColor(1, 0xFF) == true);
+    assert(graphics.writePaletteColor(2, 0xA9) == true);
+    assert(graphics.writePaletteColor(15, 0xE3) == true);
+
+    color.red3 = 9;
+    color.green3 = 9;
+    color.blue2 = 9;
+
+    assert(graphics.readPaletteRgb332(0, color) == true);
+    assert(color.red3 == 0);
+    assert(color.green3 == 0);
+    assert(color.blue2 == 0);
+
+    assert(graphics.readPaletteRgb332(1, color) == true);
+    assert(color.red3 == 7);
+    assert(color.green3 == 7);
+    assert(color.blue2 == 3);
+
+    assert(graphics.readPaletteRgb332(2, color) == true);
+    assert(color.red3 == 5);
+    assert(color.green3 == 2);
+    assert(color.blue2 == 1);
+
+    assert(graphics.readPaletteRgb332(15, color) == true);
+    assert(color.red3 == 7);
+    assert(color.green3 == 0);
+    assert(color.blue2 == 3);
+
+    color.red3 = 8;
+    color.green3 = 8;
+    color.blue2 = 8;
+
+    assert(graphics.readPaletteRgb332(16, color) == false);
+    assert(color.red3 == 8);
+    assert(color.green3 == 8);
+    assert(color.blue2 == 8);
+
+    printf("[PASS] RGB332 decode test passed\n");
+}
+
+void testRgb332ToRgb888Expansion() {
+    Rgb888Color color;
+
+    assert(GraphicsMemory::expandRgb3To8(0) == 0x00);
+    assert(GraphicsMemory::expandRgb3To8(1) == 0x24);
+    assert(GraphicsMemory::expandRgb3To8(2) == 0x49);
+    assert(GraphicsMemory::expandRgb3To8(3) == 0x6D);
+    assert(GraphicsMemory::expandRgb3To8(4) == 0x92);
+    assert(GraphicsMemory::expandRgb3To8(5) == 0xB6);
+    assert(GraphicsMemory::expandRgb3To8(6) == 0xDB);
+    assert(GraphicsMemory::expandRgb3To8(7) == 0xFF);
+
+    assert(GraphicsMemory::expandRgb2To8(0) == 0x00);
+    assert(GraphicsMemory::expandRgb2To8(1) == 0x55);
+    assert(GraphicsMemory::expandRgb2To8(2) == 0xAA);
+    assert(GraphicsMemory::expandRgb2To8(3) == 0xFF);
+
+    color = GraphicsMemory::expandRgb332ToRgb888Color(0x00);
+    assert(color.red8 == 0x00);
+    assert(color.green8 == 0x00);
+    assert(color.blue8 == 0x00);
+
+    color = GraphicsMemory::expandRgb332ToRgb888Color(0xFF);
+    assert(color.red8 == 0xFF);
+    assert(color.green8 == 0xFF);
+    assert(color.blue8 == 0xFF);
+
+    color = GraphicsMemory::expandRgb332ToRgb888Color(0xE0);
+    assert(color.red8 == 0xFF);
+    assert(color.green8 == 0x00);
+    assert(color.blue8 == 0x00);
+
+    color = GraphicsMemory::expandRgb332ToRgb888Color(0x1C);
+    assert(color.red8 == 0x00);
+    assert(color.green8 == 0xFF);
+    assert(color.blue8 == 0x00);
+
+    color = GraphicsMemory::expandRgb332ToRgb888Color(0x03);
+    assert(color.red8 == 0x00);
+    assert(color.green8 == 0x00);
+    assert(color.blue8 == 0xFF);
+
+    color = GraphicsMemory::expandRgb332ToRgb888Color(0xA9);
+    assert(color.red8 == 0xB6);
+    assert(color.green8 == 0x49);
+    assert(color.blue8 == 0x55);
+
+    color = GraphicsMemory::expandRgb332ToRgb888Color(0x92);
+    assert(color.red8 == 0x92);
+    assert(color.green8 == 0x92);
+    assert(color.blue8 == 0xAA);
+
+    Memory memory;
+    GraphicsMemory graphics(memory);
+
+    assert(graphics.writePaletteColor(0, 0x00) == true);
+    assert(graphics.writePaletteColor(1, 0xFF) == true);
+    assert(graphics.writePaletteColor(2, 0xE0) == true);
+    assert(graphics.writePaletteColor(3, 0x1C) == true);
+    assert(graphics.writePaletteColor(4, 0x03) == true);
+    assert(graphics.writePaletteColor(5, 0xA9) == true);
+
+    color.red8 = 1;
+    color.green8 = 2;
+    color.blue8 = 3;
+
+    assert(graphics.readPaletteRgb888Color(0, color) == true);
+    assert(color.red8 == 0x00);
+    assert(color.green8 == 0x00);
+    assert(color.blue8 == 0x00);
+
+    assert(graphics.readPaletteRgb888Color(1, color) == true);
+    assert(color.red8 == 0xFF);
+    assert(color.green8 == 0xFF);
+    assert(color.blue8 == 0xFF);
+
+    assert(graphics.readPaletteRgb888Color(2, color) == true);
+    assert(color.red8 == 0xFF);
+    assert(color.green8 == 0x00);
+    assert(color.blue8 == 0x00);
+
+    assert(graphics.readPaletteRgb888Color(3, color) == true);
+    assert(color.red8 == 0x00);
+    assert(color.green8 == 0xFF);
+    assert(color.blue8 == 0x00);
+
+    assert(graphics.readPaletteRgb888Color(4, color) == true);
+    assert(color.red8 == 0x00);
+    assert(color.green8 == 0x00);
+    assert(color.blue8 == 0xFF);
+
+    assert(graphics.readPaletteRgb888Color(5, color) == true);
+    assert(color.red8 == 0xB6);
+    assert(color.green8 == 0x49);
+    assert(color.blue8 == 0x55);
+
+    color.red8 = 0x11;
+    color.green8 = 0x22;
+    color.blue8 = 0x33;
+
+    assert(graphics.readPaletteRgb888Color(16, color) == false);
+    assert(color.red8 == 0x11);
+    assert(color.green8 == 0x22);
+    assert(color.blue8 == 0x33);
+
+    printf("[PASS] RGB332 to RGB888 expansion test passed\n");
+}
+
 
 void testRegisterFile() {
     RegisterFile registers;

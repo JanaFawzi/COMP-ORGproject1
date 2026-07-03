@@ -3,6 +3,18 @@
 
 #include "memory.h"
 
+struct Rgb332Color {
+    unsigned char red3;
+    unsigned char green3;
+    unsigned char blue2;
+};
+
+struct Rgb888Color {
+    unsigned char red8;
+    unsigned char green8;
+    unsigned char blue8;
+};
+
 class GraphicsMemory {
 public:
     static constexpr int SCREEN_WIDTH = 320;
@@ -72,14 +84,20 @@ public:
     static unsigned char getRgb332Red3(unsigned char rgb332);
     static unsigned char getRgb332Green3(unsigned char rgb332);
     static unsigned char getRgb332Blue2(unsigned char rgb332);
+
+    static Rgb332Color decodeRgb332(unsigned char rgb332);
+
     static unsigned char expandRgb3To8(unsigned char value3);
     static unsigned char expandRgb2To8(unsigned char value2);
+
     static void expandRgb332ToRgb888(
         unsigned char rgb332,
         unsigned char& red8,
         unsigned char& green8,
         unsigned char& blue8
     );
+
+    static Rgb888Color expandRgb332ToRgb888Color(unsigned char rgb332);
 
     static bool isTileMapUsedAddress(unsigned short address);
     static bool isTileMapRegionAddress(unsigned short address);
@@ -124,6 +142,10 @@ public:
     bool readPaletteColorChecked(int paletteIndex, unsigned char& rgb332);
 
     bool writePaletteRgb(int paletteIndex, int red3, int green3, int blue2);
+
+    bool readPaletteRgb332(int paletteIndex, Rgb332Color& color);
+    bool readPaletteRgb888Color(int paletteIndex, Rgb888Color& color);
+
     bool readPaletteRgb888(
         int paletteIndex,
         unsigned char& red8,
