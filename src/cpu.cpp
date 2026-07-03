@@ -127,6 +127,23 @@ void CPU::seedRng(unsigned short seed) {
     rngState = seed;
 }
 
+unsigned short CPU::nextRandom() {
+    unsigned int x = rngState;
+
+    x = x ^ ((x << 7) & 0xFFFF);
+    x = x & 0xFFFF;
+
+    x = x ^ (x >> 9);
+    x = x & 0xFFFF;
+
+    x = x ^ ((x << 8) & 0xFFFF);
+    x = x & 0xFFFF;
+
+    rngState = (unsigned short)x;
+
+    return rngState;
+}
+
 bool CPU::isHalted() {
     return halted;
 }
@@ -611,6 +628,12 @@ void CPU::handleSysType(DecodedInstruction instruction) {
         unsigned short seed = registers.getRegister(6);
 
         seedRng(seed);
+    }
+
+    if (instruction.service == 0x021) {
+        unsigned short value = nextRandom();
+
+        registers.setRegister(6, value);
     }
 
     if (instruction.service == 0x3FF) {

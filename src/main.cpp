@@ -1462,6 +1462,67 @@ void testEcallSeedRngExecution() {
     printf("[PASS] ECALL seed_rng test passed\n");
 }
 
+void testEcallRandomXorshiftExecution() {
+    CPU cpu;
+
+    unsigned short randomWord = makeSys(0x021);
+
+    cpu.seedRng(0xACE1);
+
+    assert(cpu.nextRandom() == 0xD30F);
+    assert(cpu.getRngState() == 0xD30F);
+
+    assert(cpu.nextRandom() == 0xF1A5);
+    assert(cpu.getRngState() == 0xF1A5);
+
+    assert(cpu.nextRandom() == 0x1734);
+    assert(cpu.getRngState() == 0x1734);
+
+    assert(cpu.nextRandom() == 0xFF72);
+    assert(cpu.getRngState() == 0xFF72);
+
+    assert(cpu.nextRandom() == 0x1751);
+    assert(cpu.getRngState() == 0x1751);
+
+    cpu.seedRng(0x1234);
+
+    cpu.setPC(0x5000);
+    cpu.getMemory().write16(0x5000, randomWord);
+    cpu.step();
+
+    assert(cpu.getRegisters().getRegister(6) == 0x3830);
+    assert(cpu.getRngState() == 0x3830);
+    assert(cpu.getPC() == 0x5002);
+    assert(cpu.getLastHandler() == ZX16::SYS_TYPE);
+
+    cpu.setPC(0x5002);
+    cpu.getMemory().write16(0x5002, randomWord);
+    cpu.step();
+
+    assert(cpu.getRegisters().getRegister(6) == 0x0020);
+    assert(cpu.getRngState() == 0x0020);
+    assert(cpu.getPC() == 0x5004);
+
+    cpu.setPC(0x5004);
+    cpu.getMemory().write16(0x5004, randomWord);
+    cpu.step();
+
+    assert(cpu.getRegisters().getRegister(6) == 0x3828);
+    assert(cpu.getRngState() == 0x3828);
+    assert(cpu.getPC() == 0x5006);
+
+    cpu.seedRng(0x0000);
+
+    cpu.setPC(0x5006);
+    cpu.getMemory().write16(0x5006, randomWord);
+    cpu.step();
+
+    assert(cpu.getRegisters().getRegister(6) == 0x0000);
+    assert(cpu.getRngState() == 0x0000);
+
+    printf("[PASS] ECALL random xorshift test passed\n");
+}
+
 void testRegisterFile() {
     RegisterFile registers;
 
@@ -2349,6 +2410,7 @@ int main() {
     testEcallReadStringExecution();
     testRngStateReset();
     testEcallSeedRngExecution();
+    testEcallRandomXorshiftExecution();
     testRegisterFile();
     testCPUReset();
     testProgramLoader();

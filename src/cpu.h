@@ -39,6 +39,7 @@ public:
     unsigned short getRngState();
     void resetRng();
     void seedRng(unsigned short seed);
+    unsigned short nextRandom();
 
     bool isHalted();
 
