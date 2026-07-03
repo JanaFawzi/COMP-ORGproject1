@@ -25,6 +25,7 @@ public:
     static constexpr unsigned short DEFAULT_VOLUME_PERCENT = 100;
     static constexpr unsigned short MAX_VOLUME_PERCENT = 100;
 
+    static constexpr unsigned short MAX_MEMORY_DUMP_BYTES = 64;
     CPU();
 
     void reset();
@@ -48,7 +49,10 @@ public:
     void clearOutput();
 
     void dumpRegisters();
-    
+
+    static bool isValidMemoryDumpLength(unsigned short length);
+    bool dumpMemory(unsigned short startAddress, unsigned short length);
+
     const char* getInput();
     void clearInput();
     void setInput(const char text[]);

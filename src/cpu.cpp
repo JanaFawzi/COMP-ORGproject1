@@ -113,6 +113,53 @@ void CPU::dumpRegisters() {
     }
 }
 
+bool CPU::isValidMemoryDumpLength(unsigned short length) {
+    if (length > MAX_MEMORY_DUMP_BYTES) {
+        return false;
+    }
+
+    return true;
+}
+
+bool CPU::dumpMemory(unsigned short startAddress, unsigned short length) {
+    if (!isValidMemoryDumpLength(length)) {
+        return false;
+    }
+
+    char text[40];
+
+    appendText("MEM\n");
+
+    sprintf(text, "START=0x%04X\n", startAddress);
+    appendText(text);
+
+    sprintf(text, "LEN=0x%04X\n", length);
+    appendText(text);
+
+    unsigned short offset = 0;
+
+    while (offset < length) {
+        unsigned short rowAddress = startAddress + offset;
+
+        sprintf(text, "0x%04X:", rowAddress);
+        appendText(text);
+
+        for (int col = 0; col < 8 && offset < length; col++) {
+            unsigned short address = startAddress + offset;
+            unsigned char value = memory.read8(address);
+
+            sprintf(text, " %02X", value);
+            appendText(text);
+
+            offset++;
+        }
+
+        appendText("\n");
+    }
+
+    return true;
+}
+
 const char* CPU::getInput() {
     return input;
 }
@@ -815,6 +862,13 @@ void CPU::handleSysType(DecodedInstruction instruction) {
 
     if (instruction.service == 0x050) {
         dumpRegisters();
+    }
+
+    if (instruction.service == 0x051) {
+        unsigned short startAddress = registers.getRegister(6);
+        unsigned short length = registers.getRegister(7);
+
+        dumpMemory(startAddress, length);
     }
 
     if (instruction.service == 0x3FF) {

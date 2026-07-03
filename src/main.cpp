@@ -1875,6 +1875,101 @@ void testEcallRegsDumpExecution() {
     printf("[PASS] ECALL regs_dump test passed\n");
 }
 
+void testEcallMemDumpExecution() {
+    CPU cpu;
+
+    unsigned short dumpWord = makeSys(0x051);
+
+    assert(CPU::isValidMemoryDumpLength(0) == true);
+    assert(CPU::isValidMemoryDumpLength(1) == true);
+    assert(CPU::isValidMemoryDumpLength(64) == true);
+    assert(CPU::isValidMemoryDumpLength(65) == false);
+    assert(CPU::isValidMemoryDumpLength(0xFFFF) == false);
+
+    cpu.getMemory().write8(0x8000, 0x12);
+    cpu.getMemory().write8(0x8001, 0x34);
+    cpu.getMemory().write8(0x8002, 0xAB);
+    cpu.getMemory().write8(0x8003, 0xCD);
+    cpu.getMemory().write8(0x8004, 0x00);
+    cpu.getMemory().write8(0x8005, 0xFF);
+    cpu.getMemory().write8(0x8006, 0x55);
+    cpu.getMemory().write8(0x8007, 0xAA);
+    cpu.getMemory().write8(0x8008, 0x10);
+    cpu.getMemory().write8(0x8009, 0x20);
+    cpu.getMemory().write8(0x800A, 0x30);
+    cpu.getMemory().write8(0x800B, 0x40);
+    cpu.getMemory().write8(0x800C, 0x50);
+    cpu.getMemory().write8(0x800D, 0x60);
+    cpu.getMemory().write8(0x800E, 0x70);
+    cpu.getMemory().write8(0x800F, 0x80);
+
+    cpu.clearOutput();
+
+    cpu.setPC(0x7800);
+    cpu.getRegisters().setRegister(6, 0x8000);
+    cpu.getRegisters().setRegister(7, 16);
+    cpu.getMemory().write16(0x7800, dumpWord);
+    cpu.step();
+
+    const char expected[] =
+        "MEM\n"
+        "START=0x8000\n"
+        "LEN=0x0010\n"
+        "0x8000: 12 34 AB CD 00 FF 55 AA\n"
+        "0x8008: 10 20 30 40 50 60 70 80\n";
+
+    assert(strcmp(cpu.getOutput(), expected) == 0);
+    assert(cpu.getPC() == 0x7802);
+    assert(cpu.getLastHandler() == ZX16::SYS_TYPE);
+
+    cpu.clearOutput();
+
+    cpu.setPC(0x7802);
+    cpu.getRegisters().setRegister(6, 0x8005);
+    cpu.getRegisters().setRegister(7, 6);
+    cpu.getMemory().write16(0x7802, dumpWord);
+    cpu.step();
+
+    const char expected2[] =
+        "MEM\n"
+        "START=0x8005\n"
+        "LEN=0x0006\n"
+        "0x8005: FF 55 AA 10 20 30\n";
+
+    assert(strcmp(cpu.getOutput(), expected2) == 0);
+    assert(cpu.getPC() == 0x7804);
+    assert(cpu.getLastHandler() == ZX16::SYS_TYPE);
+
+    cpu.clearOutput();
+
+    cpu.setPC(0x7804);
+    cpu.getRegisters().setRegister(6, 0x8000);
+    cpu.getRegisters().setRegister(7, 0);
+    cpu.getMemory().write16(0x7804, dumpWord);
+    cpu.step();
+
+    const char expected3[] =
+        "MEM\n"
+        "START=0x8000\n"
+        "LEN=0x0000\n";
+
+    assert(strcmp(cpu.getOutput(), expected3) == 0);
+    assert(cpu.getPC() == 0x7806);
+
+    cpu.clearOutput();
+
+    cpu.setPC(0x7806);
+    cpu.getRegisters().setRegister(6, 0x8000);
+    cpu.getRegisters().setRegister(7, 65);
+    cpu.getMemory().write16(0x7806, dumpWord);
+    cpu.step();
+
+    assert(strcmp(cpu.getOutput(), "") == 0);
+    assert(cpu.getPC() == 0x7808);
+
+    printf("[PASS] ECALL mem_dump test passed\n");
+}
+
 void testRegisterFile() {
     RegisterFile registers;
 
@@ -2769,6 +2864,7 @@ int main() {
     testEcallSetVolumeExecution();
     testEcallStopAudioExecution();
     testEcallRegsDumpExecution();
+    testEcallMemDumpExecution();
     testRegisterFile();
     testCPUReset();
     testProgramLoader();
