@@ -5,6 +5,7 @@
 #include "program_loader.h"
 #include "instruction_decoder.h"
 #include "gui.h"
+#include "graphics_memory.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -61,6 +62,146 @@ void testMemory() {
     assert(memory.read16(0x2000) == 0x1234);
 
     printf("[PASS] Memory test passed\n");
+}
+
+void testGraphicsMemoryManager() {
+    Memory memory;
+    GraphicsMemory graphics(memory);
+
+    assert(GraphicsMemory::SCREEN_WIDTH == 320);
+    assert(GraphicsMemory::SCREEN_HEIGHT == 240);
+
+    assert(GraphicsMemory::TILE_SIZE == 16);
+    assert(GraphicsMemory::TILE_COLUMNS == 20);
+    assert(GraphicsMemory::TILE_ROWS == 15);
+    assert(GraphicsMemory::TILE_COUNT == 16);
+    assert(GraphicsMemory::TILE_BYTES == 128);
+
+    assert(GraphicsMemory::TILE_MAP_USED_SIZE == 300);
+    assert(GraphicsMemory::TILE_MAP_USED_SIZE == GraphicsMemory::TILE_COLUMNS * GraphicsMemory::TILE_ROWS);
+    assert(GraphicsMemory::TILE_DEFINITION_SIZE == 2048);
+    assert(GraphicsMemory::TILE_DEFINITION_SIZE == GraphicsMemory::TILE_COUNT * GraphicsMemory::TILE_BYTES);
+
+    assert(GraphicsMemory::GRAPHICS_BASE == 0xF000);
+    assert(GraphicsMemory::GRAPHICS_END == 0xFA0F);
+
+    assert(GraphicsMemory::TILE_MAP_BASE == 0xF000);
+    assert(GraphicsMemory::TILE_MAP_USED_END == 0xF12B);
+    assert(GraphicsMemory::TILE_MAP_END == 0xF1FF);
+    assert(GraphicsMemory::TILE_MAP_REGION_SIZE == 512);
+
+    assert(GraphicsMemory::TILE_DEFINITION_BASE == 0xF200);
+    assert(GraphicsMemory::TILE_DEFINITION_END == 0xF9FF);
+
+    assert(GraphicsMemory::PALETTE_BASE == 0xFA00);
+    assert(GraphicsMemory::PALETTE_SIZE == 16);
+    assert(GraphicsMemory::PALETTE_END == 0xFA0F);
+
+    assert(GraphicsMemory::RESERVED_MMIO_BASE == 0xFA10);
+    assert(GraphicsMemory::RESERVED_MMIO_END == 0xFFFF);
+
+    assert(GraphicsMemory::PROJECT_STACK_RESET == 0xEFFE);
+    assert(GraphicsMemory::PROJECT_STACK_RESET < GraphicsMemory::GRAPHICS_BASE);
+
+    assert(GraphicsMemory::TILE_MAP_END + 1 == GraphicsMemory::TILE_DEFINITION_BASE);
+    assert(GraphicsMemory::TILE_DEFINITION_END + 1 == GraphicsMemory::PALETTE_BASE);
+    assert(GraphicsMemory::PALETTE_END + 1 == GraphicsMemory::RESERVED_MMIO_BASE);
+
+    assert(GraphicsMemory::getTileMapAddress(0, 0) == 0xF000);
+    assert(GraphicsMemory::getTileMapAddress(19, 0) == 0xF013);
+    assert(GraphicsMemory::getTileMapAddress(0, 1) == 0xF014);
+    assert(GraphicsMemory::getTileMapAddress(19, 14) == 0xF12B);
+
+    assert(GraphicsMemory::getTileMapAddress(-1, 0) == GraphicsMemory::INVALID_ADDRESS);
+    assert(GraphicsMemory::getTileMapAddress(20, 0) == GraphicsMemory::INVALID_ADDRESS);
+    assert(GraphicsMemory::getTileMapAddress(0, -1) == GraphicsMemory::INVALID_ADDRESS);
+    assert(GraphicsMemory::getTileMapAddress(0, 15) == GraphicsMemory::INVALID_ADDRESS);
+
+    assert(GraphicsMemory::isTileMapUsedAddress(0xEFFF) == false);
+    assert(GraphicsMemory::isTileMapUsedAddress(0xF000) == true);
+    assert(GraphicsMemory::isTileMapUsedAddress(0xF12B) == true);
+    assert(GraphicsMemory::isTileMapUsedAddress(0xF12C) == false);
+
+    assert(GraphicsMemory::isTileMapRegionAddress(0xF000) == true);
+    assert(GraphicsMemory::isTileMapRegionAddress(0xF12C) == true);
+    assert(GraphicsMemory::isTileMapRegionAddress(0xF1FF) == true);
+    assert(GraphicsMemory::isTileMapRegionAddress(0xF200) == false);
+
+    assert(GraphicsMemory::getTileDefinitionBase(0) == 0xF200);
+    assert(GraphicsMemory::getTileDefinitionBase(1) == 0xF280);
+    assert(GraphicsMemory::getTileDefinitionBase(15) == 0xF980);
+    assert(GraphicsMemory::getTileDefinitionBase(16) == GraphicsMemory::INVALID_ADDRESS);
+    assert(GraphicsMemory::getTileDefinitionBase(-1) == GraphicsMemory::INVALID_ADDRESS);
+
+    assert(GraphicsMemory::getTilePixelByteAddress(0, 0, 0) == 0xF200);
+    assert(GraphicsMemory::getTilePixelByteAddress(0, 1, 0) == 0xF200);
+    assert(GraphicsMemory::getTilePixelByteAddress(0, 2, 0) == 0xF201);
+    assert(GraphicsMemory::getTilePixelByteAddress(0, 15, 0) == 0xF207);
+    assert(GraphicsMemory::getTilePixelByteAddress(0, 0, 1) == 0xF208);
+    assert(GraphicsMemory::getTilePixelByteAddress(15, 15, 15) == 0xF9FF);
+
+    assert(GraphicsMemory::getTilePixelByteAddress(16, 0, 0) == GraphicsMemory::INVALID_ADDRESS);
+    assert(GraphicsMemory::getTilePixelByteAddress(0, -1, 0) == GraphicsMemory::INVALID_ADDRESS);
+    assert(GraphicsMemory::getTilePixelByteAddress(0, 16, 0) == GraphicsMemory::INVALID_ADDRESS);
+    assert(GraphicsMemory::getTilePixelByteAddress(0, 0, -1) == GraphicsMemory::INVALID_ADDRESS);
+    assert(GraphicsMemory::getTilePixelByteAddress(0, 0, 16) == GraphicsMemory::INVALID_ADDRESS);
+
+    assert(GraphicsMemory::isTileDefinitionAddress(0xF1FF) == false);
+    assert(GraphicsMemory::isTileDefinitionAddress(0xF200) == true);
+    assert(GraphicsMemory::isTileDefinitionAddress(0xF9FF) == true);
+    assert(GraphicsMemory::isTileDefinitionAddress(0xFA00) == false);
+
+    assert(GraphicsMemory::getPaletteAddress(0) == 0xFA00);
+    assert(GraphicsMemory::getPaletteAddress(15) == 0xFA0F);
+    assert(GraphicsMemory::getPaletteAddress(16) == GraphicsMemory::INVALID_ADDRESS);
+    assert(GraphicsMemory::getPaletteAddress(-1) == GraphicsMemory::INVALID_ADDRESS);
+
+    assert(GraphicsMemory::isPaletteAddress(0xF9FF) == false);
+    assert(GraphicsMemory::isPaletteAddress(0xFA00) == true);
+    assert(GraphicsMemory::isPaletteAddress(0xFA0F) == true);
+    assert(GraphicsMemory::isPaletteAddress(0xFA10) == false);
+
+    assert(GraphicsMemory::isGraphicsAddress(0xEFFF) == false);
+    assert(GraphicsMemory::isGraphicsAddress(0xF000) == true);
+    assert(GraphicsMemory::isGraphicsAddress(0xF1FF) == true);
+    assert(GraphicsMemory::isGraphicsAddress(0xF200) == true);
+    assert(GraphicsMemory::isGraphicsAddress(0xF9FF) == true);
+    assert(GraphicsMemory::isGraphicsAddress(0xFA00) == true);
+    assert(GraphicsMemory::isGraphicsAddress(0xFA0F) == true);
+    assert(GraphicsMemory::isGraphicsAddress(0xFA10) == false);
+
+    assert(GraphicsMemory::isReservedMmioAddress(0xFA0F) == false);
+    assert(GraphicsMemory::isReservedMmioAddress(0xFA10) == true);
+    assert(GraphicsMemory::isReservedMmioAddress(0xFFFF) == true);
+
+    assert(graphics.writeTileIndex(19, 14, 5) == true);
+    assert(memory.read8(0xF12B) == 5);
+    assert(graphics.readTileIndex(19, 14) == 5);
+
+    assert(graphics.writeTileIndex(0, 0, 16) == false);
+    assert(memory.read8(0xF000) == 0);
+
+    assert(graphics.writeTileIndex(20, 0, 3) == false);
+    assert(graphics.writeTileIndex(0, 15, 3) == false);
+    assert(graphics.readTileIndex(20, 0) == 0);
+    assert(graphics.readTileIndex(0, 15) == 0);
+
+    assert(graphics.writeTileDefinitionByte(15, 127, 0xAB) == true);
+    assert(memory.read8(0xF9FF) == 0xAB);
+    assert(graphics.readTileDefinitionByte(15, 127) == 0xAB);
+
+    assert(graphics.writeTileDefinitionByte(15, 128, 0xCD) == false);
+    assert(graphics.writeTileDefinitionByte(16, 0, 0xCD) == false);
+    assert(graphics.readTileDefinitionByte(16, 0) == 0);
+
+    assert(graphics.writePaletteColor(15, 0xE3) == true);
+    assert(memory.read8(0xFA0F) == 0xE3);
+    assert(graphics.readPaletteColor(15) == 0xE3);
+
+    assert(graphics.writePaletteColor(16, 0xFF) == false);
+    assert(graphics.readPaletteColor(16) == 0);
+
+    printf("[PASS] Graphics memory manager test passed\n");
 }
 
 void testRegisterFile() {
@@ -652,15 +793,6 @@ void loadGuiDemoProgram(CPU& cpu) {
     cpu.reset();
     cpu.clearOutput();
 
-    // Demo program:
-    // ADDI x6, 5
-    // ECALL print_int
-    // LI x6, '\n'
-    // ECALL print_char
-    // LI x6, 6
-    // ECALL print_int
-    // ECALL halt
-
     cpu.getMemory().write16(0x0020, makeI(5, 6, 0));
     cpu.getMemory().write16(0x0022, makeSys(0x000));
 
@@ -705,11 +837,6 @@ void testGuiStepExecutesOneInstruction() {
 
     cpu.reset();
 
-    // Program:
-    // 0x0020: LI x6, 5
-    // 0x0022: LI x7, 6
-    // 0x0024: ECALL halt
-
     cpu.getMemory().write16(0x0020, makeI(5, 6, 7));
     cpu.getMemory().write16(0x0022, makeI(6, 7, 7));
     cpu.getMemory().write16(0x0024, makeSys(0x3FF));
@@ -718,18 +845,14 @@ void testGuiStepExecutesOneInstruction() {
     assert(cpu.getRegisters().getRegister(6) == 0x0000);
     assert(cpu.getRegisters().getRegister(7) == 0x0000);
 
-    // Simulate pressing Step once
     handleGuiAction(cpu, GUI_ACTION_STEP, running, runDelay);
 
-    // Only first instruction should execute
     assert(cpu.getPC() == 0x0022);
     assert(cpu.getRegisters().getRegister(6) == 5);
     assert(cpu.getRegisters().getRegister(7) == 0x0000);
 
-    // Simulate pressing Step once again
     handleGuiAction(cpu, GUI_ACTION_STEP, running, runDelay);
 
-    // Only second instruction should execute
     assert(cpu.getPC() == 0x0024);
     assert(cpu.getRegisters().getRegister(6) == 5);
     assert(cpu.getRegisters().getRegister(7) == 6);
@@ -766,7 +889,6 @@ void testMemoryViewerMatchesRam() {
 }
 
 void writeWordToBin(FILE* file, unsigned short word) {
-    // ZX16 .bin files are little-endian
     fputc(word & 0x00FF, file);
     fputc((word >> 8) & 0x00FF, file);
 }
@@ -797,34 +919,17 @@ void runCpuUntilHalt(CPU& cpu, int maxSteps) {
 void testFinalBinPrograms() {
     CPU cpu;
 
-    // ============================================================
-    // Program 1: arithmetic + print_int + print_char
-    //
-    // LI x6, 7
-    // ADDI x6, 5
-    // ECALL print_int
-    // LI x6, '\n'
-    // ECALL print_char
-    // LI x6, -1
-    // ECALL print_int
-    // ECALL halt
-    //
-    // Expected output:
-    // 12
-    // -1
-    // ============================================================
-
     const char arithmeticBin[] = "final_arithmetic.bin";
 
     unsigned short arithmeticProgram[] = {
-        makeI(7, 6, 7),        // LI x6, 7
-        makeI(5, 6, 0),        // ADDI x6, 5
-        makeSys(0x000),        // print_int
-        makeI(0x0A, 6, 7),     // LI x6, '\n'
-        makeSys(0x001),        // print_char
-        makeI(0x7F, 6, 7),     // LI x6, -1
-        makeSys(0x000),        // print_int
-        makeSys(0x3FF)         // halt
+        makeI(7, 6, 7),
+        makeI(5, 6, 0),
+        makeSys(0x000),
+        makeI(0x0A, 6, 7),
+        makeSys(0x001),
+        makeI(0x7F, 6, 7),
+        makeSys(0x000),
+        makeSys(0x3FF)
     };
 
     createBinProgram(arithmeticBin, arithmeticProgram, 8);
@@ -841,40 +946,20 @@ void testFinalBinPrograms() {
 
     remove(arithmeticBin);
 
-    // ============================================================
-    // Program 2: memory load/store using stack area
-    //
-    // LI x3, 42
-    // SW x3, -2(sp)
-    // LW x6, -2(sp)
-    // ECALL print_int
-    // LI x6, '\n'
-    // ECALL print_char
-    // LI x4, -1
-    // SB x4, -1(sp)
-    // LB x6, -1(sp)
-    // ECALL print_int
-    // ECALL halt
-    //
-    // Expected output:
-    // 42
-    // -1
-    // ============================================================
-
     const char memoryBin[] = "final_memory.bin";
 
     unsigned short memoryProgram[] = {
-        makeI(42, 3, 7),       // LI x3, 42
-        makeS(0xE, 3, 2, 1),   // SW x3, -2(sp)
-        makeL(0xE, 2, 6, 1),   // LW x6, -2(sp)
-        makeSys(0x000),        // print_int
-        makeI(0x0A, 6, 7),     // LI x6, '\n'
-        makeSys(0x001),        // print_char
-        makeI(0x7F, 4, 7),     // LI x4, -1
-        makeS(0xF, 4, 2, 0),   // SB x4, -1(sp)
-        makeL(0xF, 2, 6, 0),   // LB x6, -1(sp)
-        makeSys(0x000),        // print_int
-        makeSys(0x3FF)         // halt
+        makeI(42, 3, 7),
+        makeS(0xE, 3, 2, 1),
+        makeL(0xE, 2, 6, 1),
+        makeSys(0x000),
+        makeI(0x0A, 6, 7),
+        makeSys(0x001),
+        makeI(0x7F, 4, 7),
+        makeS(0xF, 4, 2, 0),
+        makeL(0xF, 2, 6, 0),
+        makeSys(0x000),
+        makeSys(0x3FF)
     };
 
     createBinProgram(memoryBin, memoryProgram, 11);
@@ -892,29 +977,15 @@ void testFinalBinPrograms() {
 
     remove(memoryBin);
 
-    // ============================================================
-    // Program 3: branch test
-    //
-    // LI x6, 0
-    // BZ x6, +2
-    // LI x6, 9       skipped
-    // LI x6, 1
-    // ECALL print_int
-    // ECALL halt
-    //
-    // Expected output:
-    // 1
-    // ============================================================
-
     const char branchBin[] = "final_branch.bin";
 
     unsigned short branchProgram[] = {
-        makeI(0, 6, 7),        // LI x6, 0
-        makeB(1, 0, 6, 2),     // BZ x6, +2
-        makeI(9, 6, 7),        // skipped
-        makeI(1, 6, 7),        // LI x6, 1
-        makeSys(0x000),        // print_int
-        makeSys(0x3FF)         // halt
+        makeI(0, 6, 7),
+        makeB(1, 0, 6, 2),
+        makeI(9, 6, 7),
+        makeI(1, 6, 7),
+        makeSys(0x000),
+        makeSys(0x3FF)
     };
 
     createBinProgram(branchBin, branchProgram, 6);
@@ -931,30 +1002,15 @@ void testFinalBinPrograms() {
 
     remove(branchBin);
 
-    // ============================================================
-    // Program 4: function-call style test
-    //
-    // JAL x1, function
-    // ECALL print_int
-    // ECALL halt
-    // filler
-    // function:
-    // LI x6, 8
-    // JR x1
-    //
-    // Expected output:
-    // 8
-    // ============================================================
-
     const char jumpBin[] = "final_jump.bin";
 
     unsigned short jumpProgram[] = {
-        makeJ(1, 3, 0, 1),     // JAL x1, +6 -> function at 0x0028
-        makeSys(0x000),        // print_int after return
-        makeSys(0x3FF),        // halt
-        makeR(0x0, 0, 0, 0),   // filler, not executed
-        makeI(8, 6, 7),        // LI x6, 8
-        makeR(0xB, 0, 1, 0)    // JR x1
+        makeJ(1, 3, 0, 1),
+        makeSys(0x000),
+        makeSys(0x3FF),
+        makeR(0x0, 0, 0, 0),
+        makeI(8, 6, 7),
+        makeR(0xB, 0, 1, 0)
     };
 
     createBinProgram(jumpBin, jumpProgram, 6);
@@ -976,6 +1032,7 @@ void testFinalBinPrograms() {
 
 int main() {
     testMemory();
+    testGraphicsMemoryManager();
     testRegisterFile();
     testCPUReset();
     testProgramLoader();

@@ -28,6 +28,8 @@ add_executable(zx16sim
     src/program_loader.cpp
     src/instruction_decoder.cpp
     src/gui.cpp
+    src/graphics_memory.cpp
+
 )
 
 target_link_libraries(zx16sim PRIVATE raylib)
