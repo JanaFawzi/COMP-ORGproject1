@@ -70,6 +70,62 @@ unsigned short Gui::mapRaylibKeyToZx16(int raylibKey) {
     return CPU::ZX16_KEY_NONE;
 }
 
+int Gui::getConsoleVisibleLineCount() {
+    return CONSOLE_VISIBLE_LINES;
+}
+
+void Gui::buildConsoleVisibleText(const char consoleText[], char visibleText[], int visibleSize) {
+    if (visibleText == 0 || visibleSize <= 0) {
+        return;
+    }
+
+    visibleText[0] = '\0';
+
+    if (consoleText == 0) {
+        return;
+    }
+
+    int length = 0;
+
+    while (consoleText[length] != '\0') {
+        length++;
+    }
+
+    if (length == 0) {
+        return;
+    }
+
+    int end = length;
+
+    if (end > 0 && consoleText[end - 1] == '\n') {
+        end--;
+    }
+
+    int start = end;
+    int linesFound = 0;
+
+    while (start > 0 && linesFound < CONSOLE_VISIBLE_LINES) {
+        start--;
+
+        if (consoleText[start] == '\n') {
+            linesFound++;
+        }
+    }
+
+    if (consoleText[start] == '\n') {
+        start++;
+    }
+
+    int outIndex = 0;
+
+    for (int i = start; i < end && outIndex < visibleSize - 1; i++) {
+        visibleText[outIndex] = consoleText[i];
+        outIndex++;
+    }
+
+    visibleText[outIndex] = '\0';
+}
+
 void Gui::open() {
     InitWindow(width, height, "ZX16 Simulator");
 
@@ -165,7 +221,7 @@ void Gui::updateAudioFromCpu(CPU& cpu) {
         cpu.clearToneRequest();
         return;
     }
-    
+
     if (!cpu.hasPendingTone()) {
         return;
     }
@@ -316,44 +372,86 @@ void Gui::drawStatusPanel(
 }
 
 void Gui::drawConsolePanel(const char consoleText[]) {
-    DrawRectangleLines(315, 60, 270, 160, GREEN);
+    char visibleText[512];
+
+    buildConsoleVisibleText(consoleText, visibleText, 512);
+
+    DrawRectangleLines(315, 60, 270, 165, GREEN);
 
     DrawText("Console", 335, 80, 18, GREEN);
 
     DrawRectangle(335, 115, 230, 85, DARKGRAY);
     DrawRectangleLines(335, 115, 230, 85, GRAY);
 
-    DrawText(consoleText, 350, 135, 18, GREEN);
+    BeginScissorMode(335, 115, 230, 85);
+    drawConsoleTextLines(visibleText, 345, 125);
+    EndScissorMode();
+}
+
+void Gui::drawConsoleTextLines(const char visibleText[], int x, int y) {
+    char line[128];
+
+    int textIndex = 0;
+    int lineIndex = 0;
+    int lineNumber = 0;
+
+    if (visibleText == 0) {
+        return;
+    }
+
+    while (visibleText[textIndex] != '\0' && lineNumber < CONSOLE_VISIBLE_LINES) {
+        lineIndex = 0;
+
+        while (
+            visibleText[textIndex] != '\0' &&
+            visibleText[textIndex] != '\n' &&
+            lineIndex < 127
+        ) {
+            line[lineIndex] = visibleText[textIndex];
+            lineIndex++;
+            textIndex++;
+        }
+
+        line[lineIndex] = '\0';
+
+        DrawText(line, x, y + lineNumber * 14, 12, GREEN);
+
+        if (visibleText[textIndex] == '\n') {
+            textIndex++;
+        }
+
+        lineNumber++;
+    }
 }
 
 GuiAction Gui::drawControlPanel(bool running, bool halted) {
     GuiAction action = GUI_ACTION_NONE;
 
-    DrawRectangleLines(315, 240, 270, 115, GREEN);
+    DrawRectangleLines(315, 245, 270, 110, GREEN);
 
-    DrawText("Controls", 335, 260, 18, GREEN);
+    DrawText("Controls", 335, 265, 18, GREEN);
 
     if (halted) {
-        if (drawButton(335, 305, 70, 30, "Run")) {
+        if (drawButton(335, 310, 70, 30, "Run")) {
             action = GUI_ACTION_RUN_PAUSE;
         }
     }
     else if (running) {
-        if (drawButton(335, 305, 70, 30, "Pause")) {
+        if (drawButton(335, 310, 70, 30, "Pause")) {
             action = GUI_ACTION_RUN_PAUSE;
         }
     }
     else {
-        if (drawButton(335, 305, 70, 30, "Run")) {
+        if (drawButton(335, 310, 70, 30, "Run")) {
             action = GUI_ACTION_RUN_PAUSE;
         }
     }
 
-    if (drawButton(425, 305, 70, 30, "Step")) {
+    if (drawButton(425, 310, 70, 30, "Step")) {
         action = GUI_ACTION_STEP;
     }
 
-    if (drawButton(515, 305, 70, 30, "Reset")) {
+    if (drawButton(515, 310, 70, 30, "Reset")) {
         action = GUI_ACTION_RESET;
     }
 

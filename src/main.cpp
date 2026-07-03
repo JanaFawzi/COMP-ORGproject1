@@ -1970,6 +1970,69 @@ void testEcallMemDumpExecution() {
     printf("[PASS] ECALL mem_dump test passed\n");
 }
 
+void testConsoleUpdatesCorrectly() {
+    char visible[512];
+
+    Gui::buildConsoleVisibleText("", visible, 512);
+    assert(strcmp(visible, "") == 0);
+
+    Gui::buildConsoleVisibleText("A", visible, 512);
+    assert(strcmp(visible, "A") == 0);
+
+    Gui::buildConsoleVisibleText("Line1\nLine2\nLine3\n", visible, 512);
+    assert(strcmp(visible, "Line1\nLine2\nLine3") == 0);
+
+    const char longText[] =
+        "L1\n"
+        "L2\n"
+        "L3\n"
+        "L4\n"
+        "L5\n"
+        "L6\n"
+        "L7\n"
+        "L8\n"
+        "L9\n"
+        "L10\n";
+
+    Gui::buildConsoleVisibleText(longText, visible, 512);
+
+   const char expectedLong[] =
+    "L6\n"
+    "L7\n"
+    "L8\n"
+    "L9\n"
+    "L10";
+
+    assert(strcmp(visible, expectedLong) == 0);
+
+    const char memDumpText[] =
+        "MEM\n"
+        "START=0x8000\n"
+        "LEN=0x0010\n"
+        "0x8000: 12 34 AB CD 00 FF 55 AA\n"
+        "0x8008: 10 20 30 40 50 60 70 80\n";
+
+    Gui::buildConsoleVisibleText(memDumpText, visible, 512);
+
+    const char expectedMemDump[] =
+        "MEM\n"
+        "START=0x8000\n"
+        "LEN=0x0010\n"
+        "0x8000: 12 34 AB CD 00 FF 55 AA\n"
+        "0x8008: 10 20 30 40 50 60 70 80";
+
+    assert(strcmp(visible, expectedMemDump) == 0);
+
+    char smallVisible[8];
+
+    Gui::buildConsoleVisibleText("ABCDEFGH", smallVisible, 8);
+    assert(strcmp(smallVisible, "ABCDEFG") == 0);
+
+    assert(Gui::getConsoleVisibleLineCount() == 5);
+
+    printf("[PASS] Console update test passed\n");
+}
+
 void testRegisterFile() {
     RegisterFile registers;
 
@@ -2557,58 +2620,96 @@ void testEcallHaltExecution() {
 
 void loadGuiDemoProgram(CPU& cpu) {
     cpu.reset();
-    cpu.clearOutput();
 
-    cpu.getMemory().write16(0x0020, makeI(5, 6, 0));
-    cpu.getMemory().write16(0x0022, makeSys(0x000));
+    cpu.getMemory().write8(0xFA00, 0x00); // 0: black
+    cpu.getMemory().write8(0xFA01, 0xE0); // 1: red
+    cpu.getMemory().write8(0xFA02, 0x1C); // 2: green
+    cpu.getMemory().write8(0xFA03, 0x03); // 3: blue
+    cpu.getMemory().write8(0xFA04, 0xFF); // 4: white
+    cpu.getMemory().write8(0xFA05, 0xFC); // 5: yellow-ish
+    cpu.getMemory().write8(0xFA06, 0x1F); // 6: cyan-ish
+    cpu.getMemory().write8(0xFA07, 0xE3); // 7: magenta-ish
 
-    cpu.getMemory().write16(0x0024, makeI(0x0A, 6, 7));
-    cpu.getMemory().write16(0x0026, makeSys(0x001));
+    unsigned short tile0Base = 0xF200;
 
-    cpu.getMemory().write16(0x0028, makeI(6, 6, 7));
-    cpu.getMemory().write16(0x002A, makeSys(0x000));
+    for (int y = 0; y < 16; y++) {
+        for (int xByte = 0; xByte < 8; xByte++) {
+            int leftX = xByte * 2;
+            int rightX = leftX + 1;
 
-    cpu.getMemory().write16(0x002C, makeSys(0x3FF));
+            unsigned char leftColor;
+            unsigned char rightColor;
 
-    GraphicsMemory graphics(cpu.getMemory());
+            if (((leftX / 4) + (y / 4)) % 2 == 0) {
+                leftColor = 1;
+            }
+            else {
+                leftColor = 4;
+            }
 
-    graphics.clearPalette();
-    graphics.writePaletteColor(0, 0x00);
-    graphics.writePaletteColor(1, 0xFF);
-    graphics.writePaletteColor(2, 0xE0);
-    graphics.writePaletteColor(3, 0x1C);
-    graphics.writePaletteColor(4, 0x03);
-    graphics.writePaletteColor(5, 0xA9);
+            if (((rightX / 4) + (y / 4)) % 2 == 0) {
+                rightColor = 1;
+            }
+            else {
+                rightColor = 4;
+            }
 
-    for (int tile = 0; tile < 3; tile++) {
-        graphics.clearTileDefinition(tile, 0);
+            unsigned char packed = (leftColor << 4) | rightColor;
+
+            cpu.getMemory().write8(tile0Base + y * 8 + xByte, packed);
+        }
     }
 
-    for (int y = 0; y < GraphicsMemory::TILE_SIZE; y++) {
-        for (int x = 0; x < GraphicsMemory::TILE_SIZE; x++) {
-            graphics.writeTilePixel(0, x, y, (unsigned char)((x + y) % 6));
+    unsigned short tile1Base = 0xF200 + 128;
 
-            if (((x / 4) + (y / 4)) % 2 == 0) {
-                graphics.writeTilePixel(1, x, y, 1);
+    for (int y = 0; y < 16; y++) {
+        for (int xByte = 0; xByte < 8; xByte++) {
+            int leftX = xByte * 2;
+            int rightX = leftX + 1;
+
+            unsigned char leftColor;
+            unsigned char rightColor;
+
+            if (((leftX / 4) + (y / 4)) % 2 == 0) {
+                leftColor = 2;
             }
             else {
-                graphics.writeTilePixel(1, x, y, 2);
+                leftColor = 3;
             }
 
-            if (x == 0 || y == 0 || x == 15 || y == 15) {
-                graphics.writeTilePixel(2, x, y, 4);
+            if (((rightX / 4) + (y / 4)) % 2 == 0) {
+                rightColor = 2;
             }
             else {
-                graphics.writeTilePixel(2, x, y, 3);
+                rightColor = 3;
+            }
+
+            unsigned char packed = (leftColor << 4) | rightColor;
+
+            cpu.getMemory().write8(tile1Base + y * 8 + xByte, packed);
+        }
+    }
+
+
+    for (int row = 0; row < 15; row++) {
+        for (int col = 0; col < 20; col++) {
+            unsigned short address = 0xF000 + row * 20 + col;
+
+            if ((row + col) % 2 == 0) {
+                cpu.getMemory().write8(address, 0);
+            }
+            else {
+                cpu.getMemory().write8(address, 1);
             }
         }
     }
 
-    for (int row = 0; row < GraphicsMemory::TILE_ROWS; row++) {
-        for (int col = 0; col < GraphicsMemory::TILE_COLUMNS; col++) {
-            graphics.writeTileIndex(col, row, (unsigned char)((row + col) % 3));
-        }
-    }
+    cpu.getRegisters().setRegister(1, 0x1111);
+    cpu.getRegisters().setRegister(3, 0x3333);
+    cpu.getRegisters().setRegister(6, 0x6666);
+
+    cpu.getMemory().write16(0x0020, makeSys(0x050));
+    cpu.getMemory().write16(0x0022, makeSys(0x3FF));
 }
 
 void handleGuiAction(CPU& cpu, GuiAction action, bool& running, int& runDelay) {
@@ -2865,6 +2966,7 @@ int main() {
     testEcallStopAudioExecution();
     testEcallRegsDumpExecution();
     testEcallMemDumpExecution();
+    testConsoleUpdatesCorrectly();
     testRegisterFile();
     testCPUReset();
     testProgramLoader();

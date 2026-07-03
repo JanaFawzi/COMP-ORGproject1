@@ -19,7 +19,10 @@ public:
     static bool isStableFrameTimeMs(float frameTimeMs);
 
     static unsigned short mapRaylibKeyToZx16(int raylibKey);
-
+    
+    static int getConsoleVisibleLineCount();
+    static void buildConsoleVisibleText(const char consoleText[], char visibleText[], int visibleSize);
+    
     void open();
 
     bool shouldClose();
@@ -36,11 +39,13 @@ public:
 
     void close();
 
+
 private:
     int width;
     int height;
 
     static const int TARGET_FPS = 60;
+    static const int CONSOLE_VISIBLE_LINES = 5;
 
     void updateKeyboardFromRaylib(CPU& cpu);
 
@@ -66,6 +71,8 @@ private:
     void drawGraphicsPanel(CPU& cpu);
 
     bool drawButton(int x, int y, int w, int h, const char text[]);
+
+    void drawConsoleTextLines(const char visibleText[], int x, int y);
 };
 
 #endif
