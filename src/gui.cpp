@@ -1,6 +1,7 @@
 #include "gui.h"
 #include "cpu.h"
 #include "graphics_memory.h"
+#include "instruction_decoder.h"
 #include "raylib.h"
 
 #include <stdio.h>
@@ -9,7 +10,66 @@
 static bool guiAudioReady = false;
 static bool guiToneLoaded = false;
 static Sound guiToneSound;
-static unsigned int guiLastToneRequestId = 0;
+
+static const char* getSyscallDisplayName(unsigned short service) {
+    if (service == 0x000) {
+        return "print_int";
+    }
+
+    if (service == 0x001) {
+        return "print_char";
+    }
+
+    if (service == 0x010) {
+        return "read_string";
+    }
+
+    if (service == 0x011) {
+        return "read_int";
+    }
+
+    if (service == 0x012) {
+        return "print_string";
+    }
+
+    if (service == 0x020) {
+        return "seed_rng";
+    }
+
+    if (service == 0x021) {
+        return "random";
+    }
+
+    if (service == 0x030) {
+        return "keyboard";
+    }
+
+    if (service == 0x040) {
+        return "play_tone";
+    }
+
+    if (service == 0x041) {
+        return "set_volume";
+    }
+
+    if (service == 0x042) {
+        return "stop_audio";
+    }
+
+    if (service == 0x050) {
+        return "regs_dump";
+    }
+
+    if (service == 0x051) {
+        return "mem_dump";
+    }
+
+    if (service == 0x3FF) {
+        return "halt";
+    }
+
+    return "unknown_sys";
+}
 
 Gui::Gui() {
     width = 1180;
@@ -102,18 +162,19 @@ void Gui::buildConsoleVisibleText(const char consoleText[], char visibleText[], 
     }
 
     int start = end;
-    int linesFound = 0;
+    int newlineCount = 0;
 
-    while (start > 0 && linesFound < CONSOLE_VISIBLE_LINES) {
+    while (start > 0) {
         start--;
 
         if (consoleText[start] == '\n') {
-            linesFound++;
-        }
-    }
+            newlineCount++;
 
-    if (consoleText[start] == '\n') {
-        start++;
+            if (newlineCount == CONSOLE_VISIBLE_LINES) {
+                start++;
+                break;
+            }
+        }
     }
 
     int outIndex = 0;
@@ -124,6 +185,249 @@ void Gui::buildConsoleVisibleText(const char consoleText[], char visibleText[], 
     }
 
     visibleText[outIndex] = '\0';
+}
+
+unsigned short Gui::getMemoryViewerBaseAddress(unsigned short pc) {
+    return pc & 0xFFF0;
+}
+
+bool Gui::isCurrentInstructionByte(unsigned short address, unsigned short pc) {
+    if (address == pc) {
+        return true;
+    }
+
+    if (pc != 0xFFFF && address == (unsigned short)(pc + 1)) {
+        return true;
+    }
+
+    return false;
+}
+
+void Gui::disassembleInstruction(unsigned short word, char text[], int textSize) {
+    if (text == 0 || textSize <= 0) {
+        return;
+    }
+
+    text[0] = '\0';
+
+    InstructionDecoder decoder;
+    DecodedInstruction instruction = decoder.decode(word);
+
+    if (instruction.opcode == 0) {
+        if (instruction.funct4 == 0x0) {
+            snprintf(text, textSize, "R add x%d,x%d", instruction.rd, instruction.rs2);
+            return;
+        }
+
+        if (instruction.funct4 == 0x1) {
+            snprintf(text, textSize, "R sub x%d,x%d", instruction.rd, instruction.rs2);
+            return;
+        }
+
+        if (instruction.funct4 == 0x4) {
+            snprintf(text, textSize, "R sll x%d,x%d", instruction.rd, instruction.rs2);
+            return;
+        }
+
+        if (instruction.funct4 == 0x5) {
+            snprintf(text, textSize, "R srl x%d,x%d", instruction.rd, instruction.rs2);
+            return;
+        }
+
+        if (instruction.funct4 == 0x6) {
+            snprintf(text, textSize, "R sra x%d,x%d", instruction.rd, instruction.rs2);
+            return;
+        }
+
+        if (instruction.funct4 == 0x7) {
+            snprintf(text, textSize, "R or x%d,x%d", instruction.rd, instruction.rs2);
+            return;
+        }
+
+        if (instruction.funct4 == 0x8) {
+            snprintf(text, textSize, "R and x%d,x%d", instruction.rd, instruction.rs2);
+            return;
+        }
+
+        if (instruction.funct4 == 0x9) {
+            snprintf(text, textSize, "R xor x%d,x%d", instruction.rd, instruction.rs2);
+            return;
+        }
+
+        if (instruction.funct4 == 0xB) {
+            snprintf(text, textSize, "R jr x%d", instruction.rd);
+            return;
+        }
+
+        if (instruction.funct4 == 0xC) {
+            snprintf(text, textSize, "R jalr x%d,x%d", instruction.rd, instruction.rs2);
+            return;
+        }
+
+        snprintf(text, textSize, "R unknown");
+        return;
+    }
+
+    if (instruction.opcode == 1) {
+        if (instruction.func3 == 0x0) {
+            snprintf(text, textSize, "I addi x%d,%d", instruction.rd, instruction.immediate);
+            return;
+        }
+
+        if (instruction.func3 == 0x4) {
+            snprintf(text, textSize, "I ori x%d", instruction.rd);
+            return;
+        }
+
+        if (instruction.func3 == 0x5) {
+            snprintf(text, textSize, "I andi x%d,%d", instruction.rd, instruction.immediate);
+            return;
+        }
+
+        if (instruction.func3 == 0x6) {
+            snprintf(text, textSize, "I xori x%d,%d", instruction.rd, instruction.immediate);
+            return;
+        }
+
+        if (instruction.func3 == 0x7) {
+            snprintf(text, textSize, "I li x%d,%d", instruction.rd, instruction.immediate);
+            return;
+        }
+
+        snprintf(text, textSize, "I unknown");
+        return;
+    }
+
+    if (instruction.opcode == 2) {
+        if (instruction.func3 == 0x0) {
+            snprintf(text, textSize, "B beq x%d,x%d,%d", instruction.rs1, instruction.rs2, instruction.immediate);
+            return;
+        }
+
+        if (instruction.func3 == 0x1) {
+            snprintf(text, textSize, "B bne x%d,x%d,%d", instruction.rs1, instruction.rs2, instruction.immediate);
+            return;
+        }
+
+        if (instruction.func3 == 0x2) {
+            snprintf(text, textSize, "B bz x%d,%d", instruction.rs1, instruction.immediate);
+            return;
+        }
+
+        if (instruction.func3 == 0x3) {
+            snprintf(text, textSize, "B bnz x%d,%d", instruction.rs1, instruction.immediate);
+            return;
+        }
+
+        if (instruction.func3 == 0x4) {
+            snprintf(text, textSize, "B blt x%d,x%d,%d", instruction.rs1, instruction.rs2, instruction.immediate);
+            return;
+        }
+
+        if (instruction.func3 == 0x5) {
+            snprintf(text, textSize, "B bge x%d,x%d,%d", instruction.rs1, instruction.rs2, instruction.immediate);
+            return;
+        }
+
+        if (instruction.func3 == 0x6) {
+            snprintf(text, textSize, "B bltu x%d,x%d,%d", instruction.rs1, instruction.rs2, instruction.immediate);
+            return;
+        }
+
+        if (instruction.func3 == 0x7) {
+            snprintf(text, textSize, "B bgeu x%d,x%d,%d", instruction.rs1, instruction.rs2, instruction.immediate);
+            return;
+        }
+
+        snprintf(text, textSize, "B unknown");
+        return;
+    }
+
+    if (instruction.opcode == 3) {
+        if (instruction.func3 == 0x0) {
+            snprintf(text, textSize, "S sb x%d,%d(x%d)", instruction.rs2, instruction.immediate, instruction.rs1);
+            return;
+        }
+
+        if (instruction.func3 == 0x1) {
+            snprintf(text, textSize, "S sw x%d,%d(x%d)", instruction.rs2, instruction.immediate, instruction.rs1);
+            return;
+        }
+
+        snprintf(text, textSize, "S unknown");
+        return;
+    }
+
+    if (instruction.opcode == 4) {
+        if (instruction.func3 == 0x0) {
+            snprintf(text, textSize, "L lb x%d,%d(x%d)", instruction.rd, instruction.immediate, instruction.rs1);
+            return;
+        }
+
+        if (instruction.func3 == 0x1) {
+            snprintf(text, textSize, "L lw x%d,%d(x%d)", instruction.rd, instruction.immediate, instruction.rs1);
+            return;
+        }
+
+        if (instruction.func3 == 0x4) {
+            snprintf(text, textSize, "L lbu x%d,%d(x%d)", instruction.rd, instruction.immediate, instruction.rs1);
+            return;
+        }
+
+        snprintf(text, textSize, "L unknown");
+        return;
+    }
+
+    if (instruction.opcode == 5) {
+        if (instruction.linkFlag == 1) {
+            snprintf(text, textSize, "J jal x%d,%d", instruction.rd, instruction.immediate);
+            return;
+        }
+
+        snprintf(text, textSize, "J j %d", instruction.immediate);
+        return;
+    }
+
+    if (instruction.opcode == 6) {
+        snprintf(text, textSize, "U type");
+        return;
+    }
+
+    if (instruction.opcode == 7) {
+        snprintf(
+            text,
+            textSize,
+            "SYS %s",
+            getSyscallDisplayName(instruction.service)
+        );
+        return;
+    }
+
+    snprintf(text, textSize, "unknown");
+}
+
+void Gui::buildCurrentInstructionText(CPU& cpu, char text[], int textSize) {
+    if (text == 0 || textSize <= 0) {
+        return;
+    }
+
+    text[0] = '\0';
+
+    unsigned short pc = cpu.getPC();
+    unsigned short word = cpu.getMemory().read16(pc);
+
+    char disassembly[80];
+
+    disassembleInstruction(word, disassembly, 80);
+
+    snprintf(
+        text,
+        textSize,
+        "0x%04X: %04X  %s",
+        pc,
+        word,
+        disassembly
+    );
 }
 
 void Gui::open() {
@@ -160,6 +464,7 @@ GuiAction Gui::draw(
     drawStatusPanel(testStatus, frameNumber, running, cpu);
     drawConsolePanel(consoleText);
     action = drawControlPanel(running, cpu.isHalted());
+    drawDisassemblyPanel(cpu);
     drawRegisterPanel(cpu);
     drawMemoryPanel(cpu);
     drawGraphicsPanel(cpu);
@@ -226,14 +531,7 @@ void Gui::updateAudioFromCpu(CPU& cpu) {
         return;
     }
 
-    if (cpu.getToneRequestId() == guiLastToneRequestId) {
-        cpu.clearToneRequest();
-        return;
-    }
-
     playTone(cpu.getToneFrequency(), cpu.getToneDurationMs());
-
-    guiLastToneRequestId = cpu.getToneRequestId();
 
     cpu.clearToneRequest();
 }
@@ -427,35 +725,50 @@ void Gui::drawConsoleTextLines(const char visibleText[], int x, int y) {
 GuiAction Gui::drawControlPanel(bool running, bool halted) {
     GuiAction action = GUI_ACTION_NONE;
 
-    DrawRectangleLines(315, 245, 270, 110, GREEN);
+    DrawRectangleLines(315, 240, 270, 100, GREEN);
 
-    DrawText("Controls", 335, 265, 18, GREEN);
+    DrawText("Controls", 335, 255, 18, GREEN);
 
     if (halted) {
-        if (drawButton(335, 310, 70, 30, "Run")) {
+        if (drawButton(335, 295, 70, 30, "Run")) {
             action = GUI_ACTION_RUN_PAUSE;
         }
     }
     else if (running) {
-        if (drawButton(335, 310, 70, 30, "Pause")) {
+        if (drawButton(335, 295, 70, 30, "Pause")) {
             action = GUI_ACTION_RUN_PAUSE;
         }
     }
     else {
-        if (drawButton(335, 310, 70, 30, "Run")) {
+        if (drawButton(335, 295, 70, 30, "Run")) {
             action = GUI_ACTION_RUN_PAUSE;
         }
     }
 
-    if (drawButton(425, 310, 70, 30, "Step")) {
+    if (drawButton(425, 295, 70, 30, "Step")) {
         action = GUI_ACTION_STEP;
     }
 
-    if (drawButton(515, 310, 70, 30, "Reset")) {
+    if (drawButton(515, 295, 70, 30, "Reset")) {
         action = GUI_ACTION_RESET;
     }
 
     return action;
+}
+
+void Gui::drawDisassemblyPanel(CPU& cpu) {
+    char instructionText[128];
+
+    buildCurrentInstructionText(cpu, instructionText, 128);
+
+    DrawRectangleLines(315, 355, 270, 70, GREEN);
+
+    DrawText("Disassembly", 335, 370, 18, GREEN);
+
+    DrawRectangle(335, 397, 230, 22, DARKGRAY);
+    DrawRectangleLines(335, 397, 230, 22, GRAY);
+
+    DrawText(instructionText, 342, 403, 10, YELLOW);
 }
 
 void Gui::drawRegisterPanel(CPU& cpu) {
@@ -502,12 +815,12 @@ void Gui::formatMemoryLine(CPU& cpu, unsigned short address, char text[]) {
 void Gui::drawMemoryPanel(CPU& cpu) {
     unsigned short baseAddress = getMemoryViewerBaseAddress(cpu.getPC());
 
-    DrawRectangleLines(885, 60, 270, 540, GREEN);
+    DrawRectangleLines(875, 60, 285, 540, GREEN);
 
-    DrawText("Memory Viewer", 905, 80, 18, GREEN);
+    DrawText("Memory Viewer", 895, 80, 18, GREEN);
 
-    DrawText("RAM around PC", 905, 115, 14, RAYWHITE);
-    DrawText("Yellow = current instruction", 905, 132, 11, YELLOW);
+    DrawText("RAM around PC", 895, 115, 14, RAYWHITE);
+    DrawText("Yellow = current instruction", 895, 132, 11, YELLOW);
 
     for (int row = 0; row < 8; row++) {
         unsigned short rowAddress = baseAddress + row * 8;
@@ -516,7 +829,7 @@ void Gui::drawMemoryPanel(CPU& cpu) {
             cpu,
             rowAddress,
             cpu.getPC(),
-            905,
+            895,
             155 + row * 28
         );
     }
@@ -529,7 +842,7 @@ void Gui::drawMemoryLineWithHighlight(CPU& cpu, unsigned short address, unsigned
     sprintf(prefix, "0x%04X:", address);
     DrawText(prefix, x, y, 13, GREEN);
 
-    int byteX = x + 72;
+    int byteX = x + 68;
 
     for (int col = 0; col < 8; col++) {
         unsigned short byteAddress = address + col;
@@ -538,14 +851,14 @@ void Gui::drawMemoryLineWithHighlight(CPU& cpu, unsigned short address, unsigned
         sprintf(byteText, "%02X", value);
 
         if (isCurrentInstructionByte(byteAddress, pc)) {
-            DrawRectangle(byteX - 3, y - 2, 20, 17, DARKGREEN);
+            DrawRectangle(byteX - 3, y - 2, 19, 17, DARKGREEN);
             DrawText(byteText, byteX, y, 13, YELLOW);
         }
         else {
             DrawText(byteText, byteX, y, 13, GREEN);
         }
 
-        byteX = byteX + 24;
+        byteX = byteX + 22;
     }
 }
 
@@ -556,12 +869,12 @@ void Gui::drawGraphicsPanel(CPU& cpu) {
     Color color;
 
     int panelX = 315;
-    int panelY = 380;
+    int panelY = 440;
     int panelW = 270;
-    int panelH = 220;
+    int panelH = 185;
 
     int previewX = 335;
-    int previewY = 450;
+    int previewY = 495;
 
     int previewScale = 2;
     int previewW = GraphicsMemory::SCREEN_WIDTH / previewScale;
@@ -617,22 +930,6 @@ bool Gui::drawButton(int x, int y, int w, int h, const char text[]) {
     DrawText(text, x + 12, y + 8, 14, RAYWHITE);
 
     if (hover && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-        return true;
-    }
-
-    return false;
-}
-
-unsigned short Gui::getMemoryViewerBaseAddress(unsigned short pc) {
-    return pc & 0xFFF0;
-}
-
-bool Gui::isCurrentInstructionByte(unsigned short address, unsigned short pc) {
-    if (address == pc) {
-        return true;
-    }
-
-    if (pc != 0xFFFF && address == (unsigned short)(pc + 1)) {
         return true;
     }
 

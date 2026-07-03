@@ -19,13 +19,16 @@ public:
     static bool isStableFrameTimeMs(float frameTimeMs);
 
     static unsigned short mapRaylibKeyToZx16(int raylibKey);
-    
+
     static int getConsoleVisibleLineCount();
     static void buildConsoleVisibleText(const char consoleText[], char visibleText[], int visibleSize);
 
     static unsigned short getMemoryViewerBaseAddress(unsigned short pc);
     static bool isCurrentInstructionByte(unsigned short address, unsigned short pc);
-    
+
+    static void disassembleInstruction(unsigned short word, char text[], int textSize);
+    static void buildCurrentInstructionText(CPU& cpu, char text[], int textSize);
+
     void open();
 
     bool shouldClose();
@@ -42,7 +45,6 @@ public:
 
     void close();
 
-
 private:
     int width;
     int height;
@@ -51,7 +53,6 @@ private:
     static const int CONSOLE_VISIBLE_LINES = 5;
 
     void updateKeyboardFromRaylib(CPU& cpu);
-    void drawMemoryLineWithHighlight(CPU& cpu, unsigned short address, unsigned short pc, int x, int y);
 
     void updateAudioFromCpu(CPU& cpu);
     bool playTone(unsigned short frequency, unsigned short durationMs);
@@ -65,18 +66,26 @@ private:
     );
 
     void drawConsolePanel(const char consoleText[]);
+    void drawConsoleTextLines(const char visibleText[], int x, int y);
 
     GuiAction drawControlPanel(bool running, bool halted);
+
+    void drawDisassemblyPanel(CPU& cpu);
 
     void drawRegisterPanel(CPU& cpu);
 
     void drawMemoryPanel(CPU& cpu);
+    void drawMemoryLineWithHighlight(
+        CPU& cpu,
+        unsigned short address,
+        unsigned short pc,
+        int x,
+        int y
+    );
 
     void drawGraphicsPanel(CPU& cpu);
 
     bool drawButton(int x, int y, int w, int h, const char text[]);
-
-    void drawConsoleTextLines(const char visibleText[], int x, int y);
 };
 
 #endif
