@@ -345,6 +345,246 @@ void testGraphicsMemoryProtection() {
     printf("[PASS] Graphics memory protection test passed\n");
 }
 
+void testTileMapAccess() {
+    Memory memory;
+    GraphicsMemory graphics(memory);
+
+    unsigned char value = 0;
+
+    assert(GraphicsMemory::getTileMapOffset(0, 0) == 0);
+    assert(GraphicsMemory::getTileMapOffset(19, 0) == 19);
+    assert(GraphicsMemory::getTileMapOffset(0, 1) == 20);
+    assert(GraphicsMemory::getTileMapOffset(19, 14) == 299);
+
+    assert(GraphicsMemory::getTileMapOffset(-1, 0) == -1);
+    assert(GraphicsMemory::getTileMapOffset(20, 0) == -1);
+    assert(GraphicsMemory::getTileMapOffset(0, -1) == -1);
+    assert(GraphicsMemory::getTileMapOffset(0, 15) == -1);
+
+    assert(GraphicsMemory::getTileMapAddressByOffset(0) == 0xF000);
+    assert(GraphicsMemory::getTileMapAddressByOffset(299) == 0xF12B);
+    assert(GraphicsMemory::getTileMapAddressByOffset(-1) == GraphicsMemory::INVALID_ADDRESS);
+    assert(GraphicsMemory::getTileMapAddressByOffset(300) == GraphicsMemory::INVALID_ADDRESS);
+
+    assert(graphics.writeTileIndex(0, 0, 1) == true);
+    assert(graphics.writeTileIndex(19, 0, 2) == true);
+    assert(graphics.writeTileIndex(0, 14, 3) == true);
+    assert(graphics.writeTileIndex(19, 14, 15) == true);
+
+    assert(memory.read8(0xF000) == 1);
+    assert(memory.read8(0xF013) == 2);
+    assert(memory.read8(0xF118) == 3);
+    assert(memory.read8(0xF12B) == 15);
+
+    assert(graphics.readTileIndex(0, 0) == 1);
+    assert(graphics.readTileIndex(19, 0) == 2);
+    assert(graphics.readTileIndex(0, 14) == 3);
+    assert(graphics.readTileIndex(19, 14) == 15);
+
+    value = 0xAA;
+    assert(graphics.readTileIndexChecked(19, 14, value) == true);
+    assert(value == 15);
+
+    value = 0xAA;
+    assert(graphics.readTileIndexChecked(20, 14, value) == false);
+    assert(value == 0xAA);
+
+    assert(graphics.writeTileIndexByOffset(0, 4) == true);
+    assert(graphics.writeTileIndexByOffset(299, 5) == true);
+
+    assert(memory.read8(0xF000) == 4);
+    assert(memory.read8(0xF12B) == 5);
+
+    value = 0;
+    assert(graphics.readTileIndexByOffset(0, value) == true);
+    assert(value == 4);
+
+    value = 0;
+    assert(graphics.readTileIndexByOffset(299, value) == true);
+    assert(value == 5);
+
+    value = 0x55;
+    assert(graphics.readTileIndexByOffset(-1, value) == false);
+    assert(value == 0x55);
+
+    value = 0x66;
+    assert(graphics.readTileIndexByOffset(300, value) == false);
+    assert(value == 0x66);
+
+    memory.write8(0xF000, 0x09);
+    assert(graphics.writeTileIndex(0, 0, 16) == false);
+    assert(memory.read8(0xF000) == 0x09);
+
+    assert(graphics.writeTileIndex(-1, 0, 1) == false);
+    assert(graphics.writeTileIndex(20, 0, 1) == false);
+    assert(graphics.writeTileIndex(0, -1, 1) == false);
+    assert(graphics.writeTileIndex(0, 15, 1) == false);
+
+    memory.write8(0xF12C, 0xCC);
+
+    assert(graphics.fillTileMap(7) == true);
+
+    for (int row = 0; row < GraphicsMemory::TILE_ROWS; row++) {
+        for (int col = 0; col < GraphicsMemory::TILE_COLUMNS; col++) {
+            assert(graphics.readTileIndex(col, row) == 7);
+        }
+    }
+
+    assert(memory.read8(0xF12C) == 0xCC);
+
+    assert(graphics.fillTileMap(16) == false);
+    assert(memory.read8(0xF000) == 7);
+
+    assert(graphics.clearTileMap() == true);
+
+    for (int row = 0; row < GraphicsMemory::TILE_ROWS; row++) {
+        for (int col = 0; col < GraphicsMemory::TILE_COLUMNS; col++) {
+            assert(graphics.readTileIndex(col, row) == 0);
+        }
+    }
+
+    assert(memory.read8(0xF12C) == 0xCC);
+
+    printf("[PASS] Tile map access test passed\n");
+}
+
+void testTileDefinitionAccess() {
+    Memory memory;
+    GraphicsMemory graphics(memory);
+
+    unsigned char value = 0;
+    unsigned char definition[GraphicsMemory::TILE_BYTES];
+    unsigned char readBack[GraphicsMemory::TILE_BYTES];
+
+    assert(GraphicsMemory::getTilePixelNumber(0, 0) == 0);
+    assert(GraphicsMemory::getTilePixelNumber(1, 0) == 1);
+    assert(GraphicsMemory::getTilePixelNumber(15, 0) == 15);
+    assert(GraphicsMemory::getTilePixelNumber(0, 1) == 16);
+    assert(GraphicsMemory::getTilePixelNumber(15, 15) == 255);
+
+    assert(GraphicsMemory::getTilePixelByteOffset(0, 0) == 0);
+    assert(GraphicsMemory::getTilePixelByteOffset(1, 0) == 0);
+    assert(GraphicsMemory::getTilePixelByteOffset(2, 0) == 1);
+    assert(GraphicsMemory::getTilePixelByteOffset(15, 0) == 7);
+    assert(GraphicsMemory::getTilePixelByteOffset(0, 1) == 8);
+    assert(GraphicsMemory::getTilePixelByteOffset(15, 15) == 127);
+
+    assert(GraphicsMemory::getTilePixelByteOffset(-1, 0) == -1);
+    assert(GraphicsMemory::getTilePixelByteOffset(16, 0) == -1);
+    assert(GraphicsMemory::getTilePixelByteOffset(0, -1) == -1);
+    assert(GraphicsMemory::getTilePixelByteOffset(0, 16) == -1);
+
+    assert(graphics.writeTileDefinitionByte(0, 0, 0x12) == true);
+    assert(graphics.writeTileDefinitionByte(1, 0, 0x34) == true);
+    assert(graphics.writeTileDefinitionByte(15, 127, 0xAB) == true);
+
+    assert(memory.read8(0xF200) == 0x12);
+    assert(memory.read8(0xF280) == 0x34);
+    assert(memory.read8(0xF9FF) == 0xAB);
+
+    assert(graphics.readTileDefinitionByte(0, 0) == 0x12);
+    assert(graphics.readTileDefinitionByte(1, 0) == 0x34);
+    assert(graphics.readTileDefinitionByte(15, 127) == 0xAB);
+
+    value = 0x44;
+    assert(graphics.readTileDefinitionByteChecked(15, 127, value) == true);
+    assert(value == 0xAB);
+
+    value = 0x55;
+    assert(graphics.readTileDefinitionByteChecked(16, 0, value) == false);
+    assert(value == 0x55);
+
+    value = 0x66;
+    assert(graphics.readTileDefinitionByteChecked(0, 128, value) == false);
+    assert(value == 0x66);
+
+    memory.write8(0xF200, 0x99);
+    assert(graphics.writeTileDefinitionByte(0, 128, 0xFF) == false);
+    assert(graphics.writeTileDefinitionByte(16, 0, 0xFF) == false);
+    assert(memory.read8(0xF200) == 0x99);
+
+    assert(graphics.clearTileDefinition(3, 7) == true);
+
+    for (int i = 0; i < GraphicsMemory::TILE_BYTES; i++) {
+        assert(memory.read8(GraphicsMemory::getTileDefinitionBase(3) + i) == 0x77);
+    }
+
+    assert(graphics.clearTileDefinition(3, 16) == false);
+    assert(graphics.clearTileDefinition(16, 1) == false);
+
+    for (int i = 0; i < GraphicsMemory::TILE_BYTES; i++) {
+        definition[i] = (unsigned char)(i ^ 0x5A);
+        readBack[i] = 0;
+    }
+
+    assert(graphics.writeTileDefinition(4, definition, GraphicsMemory::TILE_BYTES) == true);
+    assert(graphics.readTileDefinition(4, readBack, GraphicsMemory::TILE_BYTES) == true);
+
+    for (int i = 0; i < GraphicsMemory::TILE_BYTES; i++) {
+        assert(readBack[i] == definition[i]);
+        assert(memory.read8(GraphicsMemory::getTileDefinitionBase(4) + i) == definition[i]);
+    }
+
+    assert(graphics.writeTileDefinition(4, definition, GraphicsMemory::TILE_BYTES - 1) == false);
+    assert(graphics.writeTileDefinition(4, 0, GraphicsMemory::TILE_BYTES) == false);
+    assert(graphics.writeTileDefinition(16, definition, GraphicsMemory::TILE_BYTES) == false);
+
+    assert(graphics.readTileDefinition(4, readBack, GraphicsMemory::TILE_BYTES - 1) == false);
+    assert(graphics.readTileDefinition(4, 0, GraphicsMemory::TILE_BYTES) == false);
+    assert(graphics.readTileDefinition(16, readBack, GraphicsMemory::TILE_BYTES) == false);
+
+    memory.write8(GraphicsMemory::getTilePixelByteAddress(2, 0, 0), 0x00);
+
+    assert(graphics.writeTilePixel(2, 0, 0, 0x0A) == true);
+    assert(memory.read8(GraphicsMemory::getTilePixelByteAddress(2, 0, 0)) == 0x0A);
+
+    assert(graphics.writeTilePixel(2, 1, 0, 0x0B) == true);
+    assert(memory.read8(GraphicsMemory::getTilePixelByteAddress(2, 1, 0)) == 0xBA);
+
+    value = 0;
+    assert(graphics.readTilePixel(2, 0, 0, value) == true);
+    assert(value == 0x0A);
+
+    value = 0;
+    assert(graphics.readTilePixel(2, 1, 0, value) == true);
+    assert(value == 0x0B);
+
+    assert(graphics.writeTilePixel(2, 0, 0, 0x05) == true);
+    assert(memory.read8(GraphicsMemory::getTilePixelByteAddress(2, 0, 0)) == 0xB5);
+
+    assert(graphics.writeTilePixel(2, 1, 0, 0x0C) == true);
+    assert(memory.read8(GraphicsMemory::getTilePixelByteAddress(2, 1, 0)) == 0xC5);
+
+    value = 0;
+    assert(graphics.readTilePixel(2, 0, 0, value) == true);
+    assert(value == 0x05);
+
+    value = 0;
+    assert(graphics.readTilePixel(2, 1, 0, value) == true);
+    assert(value == 0x0C);
+
+    assert(graphics.writeTilePixel(2, 0, 0, 16) == false);
+    assert(memory.read8(GraphicsMemory::getTilePixelByteAddress(2, 0, 0)) == 0xC5);
+
+    assert(graphics.writeTilePixel(16, 0, 0, 1) == false);
+    assert(graphics.writeTilePixel(2, 16, 0, 1) == false);
+    assert(graphics.writeTilePixel(2, 0, 16, 1) == false);
+
+    value = 0xEE;
+    assert(graphics.readTilePixel(16, 0, 0, value) == false);
+    assert(value == 0xEE);
+
+    value = 0xDD;
+    assert(graphics.readTilePixel(2, 16, 0, value) == false);
+    assert(value == 0xDD);
+
+    value = 0xCC;
+    assert(graphics.readTilePixel(2, 0, 16, value) == false);
+    assert(value == 0xCC);
+
+    printf("[PASS] Tile definition access test passed\n");
+}
+
 void testRegisterFile() {
     RegisterFile registers;
 

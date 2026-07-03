@@ -16,6 +16,14 @@ bool GraphicsMemory::isValidTileCell(int col, int row) {
     return true;
 }
 
+bool GraphicsMemory::isValidTileMapOffset(int offset) {
+    if (offset < 0 || offset >= TILE_MAP_USED_SIZE) {
+        return false;
+    }
+
+    return true;
+}
+
 bool GraphicsMemory::isValidTileIndex(int tileIndex) {
     if (tileIndex < 0 || tileIndex >= TILE_COUNT) {
         return false;
@@ -52,12 +60,56 @@ bool GraphicsMemory::isValidTileByteOffset(int byteOffset) {
     return true;
 }
 
-unsigned short GraphicsMemory::getTileMapAddress(int col, int row) {
+int GraphicsMemory::getTileMapOffset(int col, int row) {
     if (!isValidTileCell(col, row)) {
+        return -1;
+    }
+
+    return row * TILE_COLUMNS + col;
+}
+
+unsigned short GraphicsMemory::getTileMapAddress(int col, int row) {
+    int offset = getTileMapOffset(col, row);
+
+    if (!isValidTileMapOffset(offset)) {
         return INVALID_ADDRESS;
     }
 
-    return (unsigned short)(TILE_MAP_BASE + row * TILE_COLUMNS + col);
+    return (unsigned short)(TILE_MAP_BASE + offset);
+}
+
+unsigned short GraphicsMemory::getTileMapAddressByOffset(int offset) {
+    if (!isValidTileMapOffset(offset)) {
+        return INVALID_ADDRESS;
+    }
+
+    return (unsigned short)(TILE_MAP_BASE + offset);
+}
+
+int GraphicsMemory::getTilePixelNumber(int x, int y) {
+    if (!isValidTilePixel(x, y)) {
+        return -1;
+    }
+
+    return y * TILE_SIZE + x;
+}
+
+int GraphicsMemory::getTilePixelByteOffset(int x, int y) {
+    int pixelNumber = getTilePixelNumber(x, y);
+
+    if (pixelNumber < 0) {
+        return -1;
+    }
+
+    return pixelNumber / 2;
+}
+
+bool GraphicsMemory::isLowNibblePixel(int x) {
+    if ((x & 1) == 0) {
+        return true;
+    }
+
+    return false;
 }
 
 unsigned short GraphicsMemory::getTileDefinitionBase(int tileIndex) {
@@ -77,8 +129,11 @@ unsigned short GraphicsMemory::getTilePixelByteAddress(int tileIndex, int x, int
         return INVALID_ADDRESS;
     }
 
-    int pixelNumber = y * TILE_SIZE + x;
-    int byteOffset = pixelNumber / 2;
+    int byteOffset = getTilePixelByteOffset(x, y);
+
+    if (!isValidTileByteOffset(byteOffset)) {
+        return INVALID_ADDRESS;
+    }
 
     return (unsigned short)(getTileDefinitionBase(tileIndex) + byteOffset);
 }
@@ -239,7 +294,29 @@ bool GraphicsMemory::readVram16(unsigned short address, unsigned short& value) {
 }
 
 bool GraphicsMemory::writeTileIndex(int col, int row, unsigned char tileIndex) {
-    if (!isValidTileCell(col, row)) {
+    int offset = getTileMapOffset(col, row);
+
+    return writeTileIndexByOffset(offset, tileIndex);
+}
+
+unsigned char GraphicsMemory::readTileIndex(int col, int row) {
+    unsigned char value = 0;
+
+    if (!readTileIndexChecked(col, row, value)) {
+        return 0;
+    }
+
+    return value;
+}
+
+bool GraphicsMemory::readTileIndexChecked(int col, int row, unsigned char& tileIndex) {
+    int offset = getTileMapOffset(col, row);
+
+    return readTileIndexByOffset(offset, tileIndex);
+}
+
+bool GraphicsMemory::writeTileIndexByOffset(int offset, unsigned char tileIndex) {
+    if (!isValidTileMapOffset(offset)) {
         return false;
     }
 
@@ -247,19 +324,33 @@ bool GraphicsMemory::writeTileIndex(int col, int row, unsigned char tileIndex) {
         return false;
     }
 
-    return writeVram8(getTileMapAddress(col, row), tileIndex);
+    return writeVram8(getTileMapAddressByOffset(offset), tileIndex);
 }
 
-unsigned char GraphicsMemory::readTileIndex(int col, int row) {
-    unsigned char value = 0;
-
-    if (!isValidTileCell(col, row)) {
-        return 0;
+bool GraphicsMemory::readTileIndexByOffset(int offset, unsigned char& tileIndex) {
+    if (!isValidTileMapOffset(offset)) {
+        return false;
     }
 
-    readVram8(getTileMapAddress(col, row), value);
+    return readVram8(getTileMapAddressByOffset(offset), tileIndex);
+}
 
-    return value;
+bool GraphicsMemory::clearTileMap() {
+    return fillTileMap(0);
+}
+
+bool GraphicsMemory::fillTileMap(unsigned char tileIndex) {
+    if (!isValidTileIndex(tileIndex)) {
+        return false;
+    }
+
+    for (int offset = 0; offset < TILE_MAP_USED_SIZE; offset++) {
+        if (!writeTileIndexByOffset(offset, tileIndex)) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 bool GraphicsMemory::writeTileDefinitionByte(int tileIndex, int byteOffset, unsigned char value) {
@@ -279,19 +370,147 @@ bool GraphicsMemory::writeTileDefinitionByte(int tileIndex, int byteOffset, unsi
 unsigned char GraphicsMemory::readTileDefinitionByte(int tileIndex, int byteOffset) {
     unsigned char value = 0;
 
-    if (!isValidTileIndex(tileIndex)) {
+    if (!readTileDefinitionByteChecked(tileIndex, byteOffset, value)) {
         return 0;
     }
 
+    return value;
+}
+
+bool GraphicsMemory::readTileDefinitionByteChecked(int tileIndex, int byteOffset, unsigned char& value) {
+    if (!isValidTileIndex(tileIndex)) {
+        return false;
+    }
+
     if (!isValidTileByteOffset(byteOffset)) {
-        return 0;
+        return false;
     }
 
     unsigned short address = (unsigned short)(getTileDefinitionBase(tileIndex) + byteOffset);
 
-    readVram8(address, value);
+    return readVram8(address, value);
+}
 
-    return value;
+bool GraphicsMemory::writeTileDefinition(int tileIndex, const unsigned char data[], int byteCount) {
+    if (!isValidTileIndex(tileIndex)) {
+        return false;
+    }
+
+    if (data == 0) {
+        return false;
+    }
+
+    if (byteCount != TILE_BYTES) {
+        return false;
+    }
+
+    for (int i = 0; i < TILE_BYTES; i++) {
+        if (!writeTileDefinitionByte(tileIndex, i, data[i])) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool GraphicsMemory::readTileDefinition(int tileIndex, unsigned char data[], int byteCount) {
+    if (!isValidTileIndex(tileIndex)) {
+        return false;
+    }
+
+    if (data == 0) {
+        return false;
+    }
+
+    if (byteCount != TILE_BYTES) {
+        return false;
+    }
+
+    for (int i = 0; i < TILE_BYTES; i++) {
+        if (!readTileDefinitionByteChecked(tileIndex, i, data[i])) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool GraphicsMemory::clearTileDefinition(int tileIndex, unsigned char paletteIndex) {
+    if (!isValidTileIndex(tileIndex)) {
+        return false;
+    }
+
+    if (!isValidPaletteIndex(paletteIndex)) {
+        return false;
+    }
+
+    unsigned char packed = (unsigned char)((paletteIndex & 0x0F) | ((paletteIndex & 0x0F) << 4));
+
+    for (int i = 0; i < TILE_BYTES; i++) {
+        if (!writeTileDefinitionByte(tileIndex, i, packed)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool GraphicsMemory::writeTilePixel(int tileIndex, int x, int y, unsigned char paletteIndex) {
+    if (!isValidTileIndex(tileIndex)) {
+        return false;
+    }
+
+    if (!isValidTilePixel(x, y)) {
+        return false;
+    }
+
+    if (!isValidPaletteIndex(paletteIndex)) {
+        return false;
+    }
+
+    unsigned short address = getTilePixelByteAddress(tileIndex, x, y);
+    unsigned char oldByte = 0;
+
+    if (!readVram8(address, oldByte)) {
+        return false;
+    }
+
+    unsigned char newByte = oldByte;
+
+    if (isLowNibblePixel(x)) {
+        newByte = (unsigned char)((oldByte & 0xF0) | (paletteIndex & 0x0F));
+    }
+    else {
+        newByte = (unsigned char)((oldByte & 0x0F) | ((paletteIndex & 0x0F) << 4));
+    }
+
+    return writeVram8(address, newByte);
+}
+
+bool GraphicsMemory::readTilePixel(int tileIndex, int x, int y, unsigned char& paletteIndex) {
+    if (!isValidTileIndex(tileIndex)) {
+        return false;
+    }
+
+    if (!isValidTilePixel(x, y)) {
+        return false;
+    }
+
+    unsigned short address = getTilePixelByteAddress(tileIndex, x, y);
+    unsigned char byteValue = 0;
+
+    if (!readVram8(address, byteValue)) {
+        return false;
+    }
+
+    if (isLowNibblePixel(x)) {
+        paletteIndex = byteValue & 0x0F;
+    }
+    else {
+        paletteIndex = (byteValue >> 4) & 0x0F;
+    }
+
+    return true;
 }
 
 bool GraphicsMemory::writePaletteColor(int paletteIndex, unsigned char rgb332) {

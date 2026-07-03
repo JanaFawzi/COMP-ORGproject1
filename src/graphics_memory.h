@@ -47,12 +47,20 @@ public:
     GraphicsMemory(Memory& memoryReference);
 
     static bool isValidTileCell(int col, int row);
+    static bool isValidTileMapOffset(int offset);
     static bool isValidTileIndex(int tileIndex);
     static bool isValidTilePixel(int x, int y);
     static bool isValidPaletteIndex(int paletteIndex);
     static bool isValidTileByteOffset(int byteOffset);
 
+    static int getTileMapOffset(int col, int row);
     static unsigned short getTileMapAddress(int col, int row);
+    static unsigned short getTileMapAddressByOffset(int offset);
+
+    static int getTilePixelNumber(int x, int y);
+    static int getTilePixelByteOffset(int x, int y);
+    static bool isLowNibblePixel(int x);
+
     static unsigned short getTileDefinitionBase(int tileIndex);
     static unsigned short getTilePixelByteAddress(int tileIndex, int x, int y);
     static unsigned short getPaletteAddress(int paletteIndex);
@@ -76,9 +84,24 @@ public:
 
     bool writeTileIndex(int col, int row, unsigned char tileIndex);
     unsigned char readTileIndex(int col, int row);
+    bool readTileIndexChecked(int col, int row, unsigned char& tileIndex);
+
+    bool writeTileIndexByOffset(int offset, unsigned char tileIndex);
+    bool readTileIndexByOffset(int offset, unsigned char& tileIndex);
+
+    bool clearTileMap();
+    bool fillTileMap(unsigned char tileIndex);
 
     bool writeTileDefinitionByte(int tileIndex, int byteOffset, unsigned char value);
     unsigned char readTileDefinitionByte(int tileIndex, int byteOffset);
+    bool readTileDefinitionByteChecked(int tileIndex, int byteOffset, unsigned char& value);
+
+    bool writeTileDefinition(int tileIndex, const unsigned char data[], int byteCount);
+    bool readTileDefinition(int tileIndex, unsigned char data[], int byteCount);
+    bool clearTileDefinition(int tileIndex, unsigned char paletteIndex);
+
+    bool writeTilePixel(int tileIndex, int x, int y, unsigned char paletteIndex);
+    bool readTilePixel(int tileIndex, int x, int y, unsigned char& paletteIndex);
 
     bool writePaletteColor(int paletteIndex, unsigned char rgb332);
     unsigned char readPaletteColor(int paletteIndex);
