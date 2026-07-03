@@ -37,6 +37,13 @@ public:
     static constexpr unsigned short PROJECT_STACK_RESET = 0xEFFE;
     static constexpr unsigned short INVALID_ADDRESS = 0xFFFF;
 
+    static constexpr int REGION_NONE = 0;
+    static constexpr int REGION_TILE_MAP_USED = 1;
+    static constexpr int REGION_TILE_MAP_PADDING = 2;
+    static constexpr int REGION_TILE_DEFINITION = 3;
+    static constexpr int REGION_PALETTE = 4;
+    static constexpr int REGION_RESERVED_MMIO = 5;
+
     GraphicsMemory(Memory& memoryReference);
 
     static bool isValidTileCell(int col, int row);
@@ -55,7 +62,17 @@ public:
     static bool isTileDefinitionAddress(unsigned short address);
     static bool isPaletteAddress(unsigned short address);
     static bool isGraphicsAddress(unsigned short address);
+    static bool isVramAddress(unsigned short address);
     static bool isReservedMmioAddress(unsigned short address);
+    static bool isSafeVramRange(unsigned short address, int byteCount);
+    static bool isEvenAddress(unsigned short address);
+    static int getGraphicsRegion(unsigned short address);
+
+    bool writeVram8(unsigned short address, unsigned char value);
+    bool readVram8(unsigned short address, unsigned char& value);
+
+    bool writeVram16(unsigned short address, unsigned short value);
+    bool readVram16(unsigned short address, unsigned short& value);
 
     bool writeTileIndex(int col, int row, unsigned char tileIndex);
     unsigned char readTileIndex(int col, int row);

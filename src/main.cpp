@@ -204,6 +204,147 @@ void testGraphicsMemoryManager() {
     printf("[PASS] Graphics memory manager test passed\n");
 }
 
+void testGraphicsMemoryProtection() {
+    Memory memory;
+    GraphicsMemory graphics(memory);
+
+    unsigned char byteValue = 0;
+    unsigned short wordValue = 0;
+
+    assert(GraphicsMemory::getGraphicsRegion(0xEFFF) == GraphicsMemory::REGION_NONE);
+    assert(GraphicsMemory::getGraphicsRegion(0xF000) == GraphicsMemory::REGION_TILE_MAP_USED);
+    assert(GraphicsMemory::getGraphicsRegion(0xF12B) == GraphicsMemory::REGION_TILE_MAP_USED);
+    assert(GraphicsMemory::getGraphicsRegion(0xF12C) == GraphicsMemory::REGION_TILE_MAP_PADDING);
+    assert(GraphicsMemory::getGraphicsRegion(0xF1FF) == GraphicsMemory::REGION_TILE_MAP_PADDING);
+    assert(GraphicsMemory::getGraphicsRegion(0xF200) == GraphicsMemory::REGION_TILE_DEFINITION);
+    assert(GraphicsMemory::getGraphicsRegion(0xF9FF) == GraphicsMemory::REGION_TILE_DEFINITION);
+    assert(GraphicsMemory::getGraphicsRegion(0xFA00) == GraphicsMemory::REGION_PALETTE);
+    assert(GraphicsMemory::getGraphicsRegion(0xFA0F) == GraphicsMemory::REGION_PALETTE);
+    assert(GraphicsMemory::getGraphicsRegion(0xFA10) == GraphicsMemory::REGION_RESERVED_MMIO);
+    assert(GraphicsMemory::getGraphicsRegion(0xFFFF) == GraphicsMemory::REGION_RESERVED_MMIO);
+
+    assert(GraphicsMemory::isVramAddress(0xEFFF) == false);
+    assert(GraphicsMemory::isVramAddress(0xF000) == true);
+    assert(GraphicsMemory::isVramAddress(0xFA0F) == true);
+    assert(GraphicsMemory::isVramAddress(0xFA10) == false);
+
+    assert(GraphicsMemory::isSafeVramRange(0xF000, 1) == true);
+    assert(GraphicsMemory::isSafeVramRange(0xFA0F, 1) == true);
+    assert(GraphicsMemory::isSafeVramRange(0xFA0E, 2) == true);
+    assert(GraphicsMemory::isSafeVramRange(0xFA0F, 2) == false);
+    assert(GraphicsMemory::isSafeVramRange(0xEFFF, 1) == false);
+    assert(GraphicsMemory::isSafeVramRange(0xFA10, 1) == false);
+    assert(GraphicsMemory::isSafeVramRange(0xF000, 0) == false);
+    assert(GraphicsMemory::isSafeVramRange(0xF000, -1) == false);
+
+    memory.write8(0xEFFF, 0x11);
+    memory.write8(0xFA10, 0x22);
+    memory.write8(0xFFFF, 0x33);
+
+    assert(graphics.writeVram8(0xF000, 0xA1) == true);
+    assert(graphics.writeVram8(0xF12B, 0xA2) == true);
+    assert(graphics.writeVram8(0xF12C, 0xA3) == true);
+    assert(graphics.writeVram8(0xF1FF, 0xA4) == true);
+    assert(graphics.writeVram8(0xF200, 0xA5) == true);
+    assert(graphics.writeVram8(0xF9FF, 0xA6) == true);
+    assert(graphics.writeVram8(0xFA00, 0xA7) == true);
+    assert(graphics.writeVram8(0xFA0F, 0xA8) == true);
+
+    assert(memory.read8(0xF000) == 0xA1);
+    assert(memory.read8(0xF12B) == 0xA2);
+    assert(memory.read8(0xF12C) == 0xA3);
+    assert(memory.read8(0xF1FF) == 0xA4);
+    assert(memory.read8(0xF200) == 0xA5);
+    assert(memory.read8(0xF9FF) == 0xA6);
+    assert(memory.read8(0xFA00) == 0xA7);
+    assert(memory.read8(0xFA0F) == 0xA8);
+
+    assert(graphics.readVram8(0xF000, byteValue) == true);
+    assert(byteValue == 0xA1);
+
+    assert(graphics.readVram8(0xF12B, byteValue) == true);
+    assert(byteValue == 0xA2);
+
+    assert(graphics.readVram8(0xF12C, byteValue) == true);
+    assert(byteValue == 0xA3);
+
+    assert(graphics.readVram8(0xF1FF, byteValue) == true);
+    assert(byteValue == 0xA4);
+
+    assert(graphics.readVram8(0xF200, byteValue) == true);
+    assert(byteValue == 0xA5);
+
+    assert(graphics.readVram8(0xF9FF, byteValue) == true);
+    assert(byteValue == 0xA6);
+
+    assert(graphics.readVram8(0xFA00, byteValue) == true);
+    assert(byteValue == 0xA7);
+
+    assert(graphics.readVram8(0xFA0F, byteValue) == true);
+    assert(byteValue == 0xA8);
+
+    assert(graphics.writeVram8(0xEFFF, 0xFF) == false);
+    assert(graphics.writeVram8(0xFA10, 0xFF) == false);
+    assert(graphics.writeVram8(0xFFFF, 0xFF) == false);
+
+    assert(memory.read8(0xEFFF) == 0x11);
+    assert(memory.read8(0xFA10) == 0x22);
+    assert(memory.read8(0xFFFF) == 0x33);
+
+    byteValue = 0x77;
+    assert(graphics.readVram8(0xEFFF, byteValue) == false);
+    assert(byteValue == 0x77);
+
+    byteValue = 0x88;
+    assert(graphics.readVram8(0xFA10, byteValue) == false);
+    assert(byteValue == 0x88);
+
+    assert(graphics.writeVram16(0xF000, 0x1234) == true);
+    assert(memory.read8(0xF000) == 0x34);
+    assert(memory.read8(0xF001) == 0x12);
+
+    wordValue = 0;
+    assert(graphics.readVram16(0xF000, wordValue) == true);
+    assert(wordValue == 0x1234);
+
+    assert(graphics.writeVram16(0xFA0E, 0xBEEF) == true);
+    assert(memory.read8(0xFA0E) == 0xEF);
+    assert(memory.read8(0xFA0F) == 0xBE);
+
+    wordValue = 0;
+    assert(graphics.readVram16(0xFA0E, wordValue) == true);
+    assert(wordValue == 0xBEEF);
+
+    memory.write8(0xFA0F, 0x55);
+    memory.write8(0xFA10, 0x66);
+
+    assert(graphics.writeVram16(0xFA0F, 0xABCD) == false);
+    assert(memory.read8(0xFA0F) == 0x55);
+    assert(memory.read8(0xFA10) == 0x66);
+
+    assert(graphics.writeVram16(0xEFFE, 0xABCD) == false);
+    assert(memory.read8(0xEFFF) == 0x11);
+
+    assert(graphics.writeVram16(0xFA10, 0xABCD) == false);
+    assert(memory.read8(0xFA10) == 0x66);
+
+    wordValue = 0x9999;
+    assert(graphics.readVram16(0xFA0F, wordValue) == false);
+    assert(wordValue == 0x9999);
+
+    wordValue = 0xAAAA;
+    assert(graphics.readVram16(0xEFFE, wordValue) == false);
+    assert(wordValue == 0xAAAA);
+
+    assert(graphics.writeVram16(0xF001, 0x5555) == false);
+
+    wordValue = 0xBBBB;
+    assert(graphics.readVram16(0xF001, wordValue) == false);
+    assert(wordValue == 0xBBBB);
+
+    printf("[PASS] Graphics memory protection test passed\n");
+}
+
 void testRegisterFile() {
     RegisterFile registers;
 
@@ -1033,6 +1174,7 @@ void testFinalBinPrograms() {
 int main() {
     testMemory();
     testGraphicsMemoryManager();
+    testGraphicsMemoryProtection();
     testRegisterFile();
     testCPUReset();
     testProgramLoader();

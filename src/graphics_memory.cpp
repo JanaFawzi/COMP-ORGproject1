@@ -131,11 +131,110 @@ bool GraphicsMemory::isGraphicsAddress(unsigned short address) {
     return true;
 }
 
+bool GraphicsMemory::isVramAddress(unsigned short address) {
+    return isGraphicsAddress(address);
+}
+
 bool GraphicsMemory::isReservedMmioAddress(unsigned short address) {
     if (address < RESERVED_MMIO_BASE || address > RESERVED_MMIO_END) {
         return false;
     }
 
+    return true;
+}
+
+bool GraphicsMemory::isSafeVramRange(unsigned short address, int byteCount) {
+    if (byteCount <= 0) {
+        return false;
+    }
+
+    int start = address;
+    int end = start + byteCount - 1;
+
+    if (start < GRAPHICS_BASE) {
+        return false;
+    }
+
+    if (end > GRAPHICS_END) {
+        return false;
+    }
+
+    return true;
+}
+
+bool GraphicsMemory::isEvenAddress(unsigned short address) {
+    if ((address & 1) != 0) {
+        return false;
+    }
+
+    return true;
+}
+
+int GraphicsMemory::getGraphicsRegion(unsigned short address) {
+    if (isTileMapUsedAddress(address)) {
+        return REGION_TILE_MAP_USED;
+    }
+
+    if (isTileMapRegionAddress(address)) {
+        return REGION_TILE_MAP_PADDING;
+    }
+
+    if (isTileDefinitionAddress(address)) {
+        return REGION_TILE_DEFINITION;
+    }
+
+    if (isPaletteAddress(address)) {
+        return REGION_PALETTE;
+    }
+
+    if (isReservedMmioAddress(address)) {
+        return REGION_RESERVED_MMIO;
+    }
+
+    return REGION_NONE;
+}
+
+bool GraphicsMemory::writeVram8(unsigned short address, unsigned char value) {
+    if (!isVramAddress(address)) {
+        return false;
+    }
+
+    memory.write8(address, value);
+    return true;
+}
+
+bool GraphicsMemory::readVram8(unsigned short address, unsigned char& value) {
+    if (!isVramAddress(address)) {
+        return false;
+    }
+
+    value = memory.read8(address);
+    return true;
+}
+
+bool GraphicsMemory::writeVram16(unsigned short address, unsigned short value) {
+    if (!isEvenAddress(address)) {
+        return false;
+    }
+
+    if (!isSafeVramRange(address, 2)) {
+        return false;
+    }
+
+    memory.write16(address, value);
+    return true;
+}
+
+bool GraphicsMemory::readVram16(unsigned short address, unsigned short& value) {
+    if (!isEvenAddress(address)) {
+        return false;
+    }
+
+    if (!isSafeVramRange(address, 2)) {
+        return false;
+    }
+
+    value = memory.read16(address);
     return true;
 }
 
@@ -148,16 +247,19 @@ bool GraphicsMemory::writeTileIndex(int col, int row, unsigned char tileIndex) {
         return false;
     }
 
-    memory.write8(getTileMapAddress(col, row), tileIndex);
-    return true;
+    return writeVram8(getTileMapAddress(col, row), tileIndex);
 }
 
 unsigned char GraphicsMemory::readTileIndex(int col, int row) {
+    unsigned char value = 0;
+
     if (!isValidTileCell(col, row)) {
         return 0;
     }
 
-    return memory.read8(getTileMapAddress(col, row));
+    readVram8(getTileMapAddress(col, row), value);
+
+    return value;
 }
 
 bool GraphicsMemory::writeTileDefinitionByte(int tileIndex, int byteOffset, unsigned char value) {
@@ -170,12 +272,13 @@ bool GraphicsMemory::writeTileDefinitionByte(int tileIndex, int byteOffset, unsi
     }
 
     unsigned short address = (unsigned short)(getTileDefinitionBase(tileIndex) + byteOffset);
-    memory.write8(address, value);
 
-    return true;
+    return writeVram8(address, value);
 }
 
 unsigned char GraphicsMemory::readTileDefinitionByte(int tileIndex, int byteOffset) {
+    unsigned char value = 0;
+
     if (!isValidTileIndex(tileIndex)) {
         return 0;
     }
@@ -186,7 +289,9 @@ unsigned char GraphicsMemory::readTileDefinitionByte(int tileIndex, int byteOffs
 
     unsigned short address = (unsigned short)(getTileDefinitionBase(tileIndex) + byteOffset);
 
-    return memory.read8(address);
+    readVram8(address, value);
+
+    return value;
 }
 
 bool GraphicsMemory::writePaletteColor(int paletteIndex, unsigned char rgb332) {
@@ -194,14 +299,17 @@ bool GraphicsMemory::writePaletteColor(int paletteIndex, unsigned char rgb332) {
         return false;
     }
 
-    memory.write8(getPaletteAddress(paletteIndex), rgb332);
-    return true;
+    return writeVram8(getPaletteAddress(paletteIndex), rgb332);
 }
 
 unsigned char GraphicsMemory::readPaletteColor(int paletteIndex) {
+    unsigned char value = 0;
+
     if (!isValidPaletteIndex(paletteIndex)) {
         return 0;
     }
 
-    return memory.read8(getPaletteAddress(paletteIndex));
+    readVram8(getPaletteAddress(paletteIndex), value);
+
+    return value;
 }
