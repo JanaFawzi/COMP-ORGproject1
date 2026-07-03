@@ -10,9 +10,31 @@ Gui::Gui() {
     height = 650;
 }
 
+int Gui::getTargetFps() {
+    return TARGET_FPS;
+}
+
+float Gui::getTargetFrameTimeMs() {
+    return 1000.0f / (float)TARGET_FPS;
+}
+
+bool Gui::isStableFrameTimeMs(float frameTimeMs) {
+    float target = getTargetFrameTimeMs();
+
+    if (frameTimeMs < target - 5.0f) {
+        return false;
+    }
+
+    if (frameTimeMs > target + 5.0f) {
+        return false;
+    }
+
+    return true;
+}
+
 void Gui::open() {
     InitWindow(width, height, "ZX16 Simulator");
-    SetTargetFPS(60);
+    SetTargetFPS(getTargetFps());
 }
 
 bool Gui::shouldClose() {
@@ -56,10 +78,14 @@ void Gui::drawStatusPanel(
     char pcText[40];
     char spText[40];
     char stateText[40];
+    char fpsText[40];
+    char frameTimeText[40];
 
     sprintf(frameText, "Frame update: %d", frameNumber);
     sprintf(pcText, "PC: 0x%04X", cpu.getPC());
     sprintf(spText, "SP: 0x%04X", cpu.getSP());
+    sprintf(fpsText, "Target FPS: %d", getTargetFps());
+    sprintf(frameTimeText, "Target frame: %.2f ms", getTargetFrameTimeMs());
 
     if (cpu.isHalted()) {
         sprintf(stateText, "CPU state: HALTED");
@@ -87,6 +113,8 @@ void Gui::drawStatusPanel(
     DrawText(spText, 45, 350, 14, GREEN);
     DrawText(stateText, 45, 375, 14, GREEN);
     DrawText(frameText, 45, 400, 14, GREEN);
+    DrawText(fpsText, 45, 425, 14, GREEN);
+    DrawText(frameTimeText, 45, 450, 14, GREEN);
 }
 
 void Gui::drawConsolePanel(const char consoleText[]) {

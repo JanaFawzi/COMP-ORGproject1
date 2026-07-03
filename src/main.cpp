@@ -1217,6 +1217,190 @@ void testRendererConnectedToVram() {
     printf("[PASS] Renderer connected to VRAM test passed\n");
 }
 
+void testFrameTimingStableRefresh() {
+    assert(Gui::getTargetFps() == 60);
+
+    float target = Gui::getTargetFrameTimeMs();
+
+    assert(target > 16.0f);
+    assert(target < 17.0f);
+
+    assert(Gui::isStableFrameTimeMs(16.67f) == true);
+    assert(Gui::isStableFrameTimeMs(15.00f) == true);
+    assert(Gui::isStableFrameTimeMs(20.00f) == true);
+
+    assert(Gui::isStableFrameTimeMs(5.00f) == false);
+    assert(Gui::isStableFrameTimeMs(30.00f) == false);
+    assert(Gui::isStableFrameTimeMs(100.00f) == false);
+
+    printf("[PASS] Frame timing test passed\n");
+}
+
+void testEcallPrintStringExecution() {
+    CPU cpu;
+
+    unsigned short word = makeSys(0x012);
+    unsigned short address = 0x8000;
+
+    cpu.clearOutput();
+
+    cpu.getMemory().write8(address + 0, 'H');
+    cpu.getMemory().write8(address + 1, 'e');
+    cpu.getMemory().write8(address + 2, 'l');
+    cpu.getMemory().write8(address + 3, 'l');
+    cpu.getMemory().write8(address + 4, 'o');
+    cpu.getMemory().write8(address + 5, 0);
+
+    cpu.setPC(0x1000);
+    cpu.getRegisters().setRegister(6, address);
+    cpu.getMemory().write16(0x1000, word);
+    cpu.step();
+
+    assert(strcmp(cpu.getOutput(), "Hello") == 0);
+
+    cpu.clearOutput();
+
+    cpu.getMemory().write8(address + 0, 'Z');
+    cpu.getMemory().write8(address + 1, 'X');
+    cpu.getMemory().write8(address + 2, '1');
+    cpu.getMemory().write8(address + 3, '6');
+    cpu.getMemory().write8(address + 4, '\n');
+    cpu.getMemory().write8(address + 5, 'O');
+    cpu.getMemory().write8(address + 6, 'K');
+    cpu.getMemory().write8(address + 7, 0);
+
+    cpu.setPC(0x1100);
+    cpu.getRegisters().setRegister(6, address);
+    cpu.getMemory().write16(0x1100, word);
+    cpu.step();
+
+    assert(strcmp(cpu.getOutput(), "ZX16\nOK") == 0);
+
+    cpu.clearOutput();
+
+    cpu.getMemory().write8(address, 0);
+
+    cpu.setPC(0x1200);
+    cpu.getRegisters().setRegister(6, address);
+    cpu.getMemory().write16(0x1200, word);
+    cpu.step();
+
+    assert(strcmp(cpu.getOutput(), "") == 0);
+
+    printf("[PASS] ECALL print_string test passed\n");
+}
+
+void testEcallReadIntExecution() {
+    CPU cpu;
+
+    unsigned short word = makeSys(0x011);
+
+    cpu.setInput("123 -45\n32767 -32768 abc 99");
+
+    cpu.setPC(0x2000);
+    cpu.getMemory().write16(0x2000, word);
+    cpu.step();
+
+    assert(cpu.getRegisters().getRegister(6) == 123);
+
+    cpu.setPC(0x2002);
+    cpu.getMemory().write16(0x2002, word);
+    cpu.step();
+
+    assert(cpu.getRegisters().getRegister(6) == (unsigned short)-45);
+
+    cpu.setPC(0x2004);
+    cpu.getMemory().write16(0x2004, word);
+    cpu.step();
+
+    assert(cpu.getRegisters().getRegister(6) == 32767);
+
+    cpu.setPC(0x2006);
+    cpu.getMemory().write16(0x2006, word);
+    cpu.step();
+
+    assert(cpu.getRegisters().getRegister(6) == 0x8000);
+
+    cpu.setPC(0x2008);
+    cpu.getMemory().write16(0x2008, word);
+    cpu.step();
+
+    assert(cpu.getRegisters().getRegister(6) == 0);
+
+    printf("[PASS] ECALL read_int test passed\n");
+}
+
+void testEcallReadStringExecution() {
+    CPU cpu;
+
+    unsigned short word = makeSys(0x010);
+    unsigned short address = 0x8100;
+
+    cpu.setInput("hello world\nabcdef\nxy\n");
+
+    cpu.setPC(0x3000);
+    cpu.getRegisters().setRegister(6, address);
+    cpu.getRegisters().setRegister(7, 20);
+    cpu.getMemory().write16(0x3000, word);
+    cpu.step();
+
+    assert(cpu.getRegisters().getRegister(6) == 11);
+    assert(cpu.getMemory().read8(address + 0) == 'h');
+    assert(cpu.getMemory().read8(address + 10) == 'd');
+    assert(cpu.getMemory().read8(address + 11) == 0);
+
+    cpu.setPC(0x3002);
+    cpu.getRegisters().setRegister(6, address + 32);
+    cpu.getRegisters().setRegister(7, 4);
+    cpu.getMemory().write16(0x3002, word);
+    cpu.step();
+
+    assert(cpu.getRegisters().getRegister(6) == 3);
+    assert(cpu.getMemory().read8(address + 32) == 'a');
+    assert(cpu.getMemory().read8(address + 33) == 'b');
+    assert(cpu.getMemory().read8(address + 34) == 'c');
+    assert(cpu.getMemory().read8(address + 35) == 0);
+
+    cpu.setPC(0x3004);
+    cpu.getRegisters().setRegister(6, address + 64);
+    cpu.getRegisters().setRegister(7, 3);
+    cpu.getMemory().write16(0x3004, word);
+    cpu.step();
+
+    assert(cpu.getRegisters().getRegister(6) == 2);
+    assert(cpu.getMemory().read8(address + 64) == 'x');
+    assert(cpu.getMemory().read8(address + 65) == 'y');
+    assert(cpu.getMemory().read8(address + 66) == 0);
+
+    cpu.setInput("no-write\n");
+
+    cpu.getMemory().write8(address + 96, 0xAA);
+
+    cpu.setPC(0x3006);
+    cpu.getRegisters().setRegister(6, address + 96);
+    cpu.getRegisters().setRegister(7, 0);
+    cpu.getMemory().write16(0x3006, word);
+    cpu.step();
+
+    assert(cpu.getRegisters().getRegister(6) == 0);
+    assert(cpu.getMemory().read8(address + 96) == 0xAA);
+
+    cpu.setInput("z\n");
+
+    cpu.getMemory().write8(address + 128, 0xBB);
+
+    cpu.setPC(0x3008);
+    cpu.getRegisters().setRegister(6, address + 128);
+    cpu.getRegisters().setRegister(7, 1);
+    cpu.getMemory().write16(0x3008, word);
+    cpu.step();
+
+    assert(cpu.getRegisters().getRegister(6) == 0);
+    assert(cpu.getMemory().read8(address + 128) == 0);
+
+    printf("[PASS] ECALL read_string test passed\n");
+}
+
 void testRegisterFile() {
     RegisterFile registers;
 
@@ -2098,6 +2282,10 @@ int main() {
     testFullScreenRenderer();
     testRendererLiveUpdate();
     testRendererConnectedToVram();
+    testFrameTimingStableRefresh();
+    testEcallPrintStringExecution();
+    testEcallReadIntExecution();
+    testEcallReadStringExecution();
     testRegisterFile();
     testCPUReset();
     testProgramLoader();

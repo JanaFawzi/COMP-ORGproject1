@@ -14,6 +14,10 @@ class Gui {
 public:
     Gui();
 
+    static int getTargetFps();
+    static float getTargetFrameTimeMs();
+    static bool isStableFrameTimeMs(float frameTimeMs);
+
     void open();
 
     bool shouldClose();
@@ -33,6 +37,8 @@ public:
 private:
     int width;
     int height;
+
+    static const int TARGET_FPS = 60;
 
     void drawStatusPanel(
         const char testStatus[],
