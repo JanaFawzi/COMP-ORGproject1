@@ -60,6 +60,18 @@ bool GraphicsMemory::isValidTileByteOffset(int byteOffset) {
     return true;
 }
 
+bool GraphicsMemory::isValidScreenPixel(int x, int y) {
+    if (x < 0 || x >= SCREEN_WIDTH) {
+        return false;
+    }
+
+    if (y < 0 || y >= SCREEN_HEIGHT) {
+        return false;
+    }
+
+    return true;
+}
+
 bool GraphicsMemory::isValidRgb3(int value) {
     if (value < 0 || value > 7) {
         return false;
@@ -126,6 +138,46 @@ bool GraphicsMemory::isLowNibblePixel(int x) {
     }
 
     return false;
+}
+
+int GraphicsMemory::getScreenPixelNumber(int x, int y) {
+    if (!isValidScreenPixel(x, y)) {
+        return -1;
+    }
+
+    return y * SCREEN_WIDTH + x;
+}
+
+int GraphicsMemory::getScreenTileColumn(int x) {
+    if (x < 0 || x >= SCREEN_WIDTH) {
+        return -1;
+    }
+
+    return x / TILE_SIZE;
+}
+
+int GraphicsMemory::getScreenTileRow(int y) {
+    if (y < 0 || y >= SCREEN_HEIGHT) {
+        return -1;
+    }
+
+    return y / TILE_SIZE;
+}
+
+int GraphicsMemory::getScreenTilePixelX(int x) {
+    if (x < 0 || x >= SCREEN_WIDTH) {
+        return -1;
+    }
+
+    return x % TILE_SIZE;
+}
+
+int GraphicsMemory::getScreenTilePixelY(int y) {
+    if (y < 0 || y >= SCREEN_HEIGHT) {
+        return -1;
+    }
+
+    return y % TILE_SIZE;
 }
 
 unsigned char GraphicsMemory::extractLowNibble(unsigned char value) {
@@ -674,6 +726,80 @@ bool GraphicsMemory::renderTilePaletteIndices(int tileIndex, unsigned char pixel
             int pixelNumber = getTilePixelNumber(x, y);
 
             if (!readTilePixelPaletteIndex(tileIndex, x, y, pixels[pixelNumber])) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool GraphicsMemory::renderScreenPixel(int x, int y, Rgb888Color& color) {
+    if (!isValidScreenPixel(x, y)) {
+        return false;
+    }
+
+    int tileCol = getScreenTileColumn(x);
+    int tileRow = getScreenTileRow(y);
+    int tileX = getScreenTilePixelX(x);
+    int tileY = getScreenTilePixelY(y);
+
+    unsigned char tileIndex = 0;
+
+    if (!readTileIndexChecked(tileCol, tileRow, tileIndex)) {
+        return false;
+    }
+
+    return renderTilePixel(tileIndex, tileX, tileY, color);
+}
+
+bool GraphicsMemory::renderScreen(Rgb888Color pixels[], int pixelCount) {
+    if (pixels == 0) {
+        return false;
+    }
+
+    if (pixelCount != SCREEN_PIXEL_COUNT) {
+        return false;
+    }
+
+    for (int y = 0; y < SCREEN_HEIGHT; y++) {
+        for (int x = 0; x < SCREEN_WIDTH; x++) {
+            int pixelNumber = getScreenPixelNumber(x, y);
+
+            if (!renderScreenPixel(x, y, pixels[pixelNumber])) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool GraphicsMemory::renderScreenPaletteIndices(unsigned char pixels[], int pixelCount) {
+    if (pixels == 0) {
+        return false;
+    }
+
+    if (pixelCount != SCREEN_PIXEL_COUNT) {
+        return false;
+    }
+
+    for (int y = 0; y < SCREEN_HEIGHT; y++) {
+        for (int x = 0; x < SCREEN_WIDTH; x++) {
+            int pixelNumber = getScreenPixelNumber(x, y);
+
+            int tileCol = getScreenTileColumn(x);
+            int tileRow = getScreenTileRow(y);
+            int tileX = getScreenTilePixelX(x);
+            int tileY = getScreenTilePixelY(y);
+
+            unsigned char tileIndex = 0;
+
+            if (!readTileIndexChecked(tileCol, tileRow, tileIndex)) {
+                return false;
+            }
+
+            if (!readTilePixelPaletteIndex(tileIndex, tileX, tileY, pixels[pixelNumber])) {
                 return false;
             }
         }

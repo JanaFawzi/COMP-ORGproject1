@@ -26,7 +26,6 @@ public:
         CPU& cpu
     );
 
-    // Used by memory viewer and by the test
     void formatMemoryLine(CPU& cpu, unsigned short address, char text[]);
 
     void close();
@@ -50,7 +49,9 @@ private:
 
     void drawMemoryPanel(CPU& cpu);
 
-    bool drawButton(float x, float y, float w, float h, const char text[]);
+    void drawGraphicsPanel(CPU& cpu);
+
+    bool drawButton(int x, int y, int w, int h, const char text[]);
 };
 
 #endif

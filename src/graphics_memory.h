@@ -19,6 +19,7 @@ class GraphicsMemory {
 public:
     static constexpr int SCREEN_WIDTH = 320;
     static constexpr int SCREEN_HEIGHT = 240;
+    static constexpr int SCREEN_PIXEL_COUNT = 76800;
 
     static constexpr int TILE_SIZE = 16;
     static constexpr int TILE_COLUMNS = 20;
@@ -65,6 +66,7 @@ public:
     static bool isValidTilePixel(int x, int y);
     static bool isValidPaletteIndex(int paletteIndex);
     static bool isValidTileByteOffset(int byteOffset);
+    static bool isValidScreenPixel(int x, int y);
 
     static bool isValidRgb3(int value);
     static bool isValidRgb2(int value);
@@ -76,6 +78,12 @@ public:
     static int getTilePixelNumber(int x, int y);
     static int getTilePixelByteOffset(int x, int y);
     static bool isLowNibblePixel(int x);
+
+    static int getScreenPixelNumber(int x, int y);
+    static int getScreenTileColumn(int x);
+    static int getScreenTileRow(int y);
+    static int getScreenTilePixelX(int x);
+    static int getScreenTilePixelY(int y);
 
     static unsigned char extractLowNibble(unsigned char value);
     static unsigned char extractHighNibble(unsigned char value);
@@ -146,6 +154,10 @@ public:
     bool renderTilePixel(int tileIndex, int x, int y, Rgb888Color& color);
     bool renderTile(int tileIndex, Rgb888Color pixels[], int pixelCount);
     bool renderTilePaletteIndices(int tileIndex, unsigned char pixels[], int pixelCount);
+
+    bool renderScreenPixel(int x, int y, Rgb888Color& color);
+    bool renderScreen(Rgb888Color pixels[], int pixelCount);
+    bool renderScreenPaletteIndices(unsigned char pixels[], int pixelCount);
 
     bool writePaletteColor(int paletteIndex, unsigned char rgb332);
     unsigned char readPaletteColor(int paletteIndex);

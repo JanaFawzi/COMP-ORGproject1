@@ -70,6 +70,7 @@ void testGraphicsMemoryManager() {
 
     assert(GraphicsMemory::SCREEN_WIDTH == 320);
     assert(GraphicsMemory::SCREEN_HEIGHT == 240);
+    assert(GraphicsMemory::SCREEN_PIXEL_COUNT == 76800);
 
     assert(GraphicsMemory::TILE_SIZE == 16);
     assert(GraphicsMemory::TILE_COLUMNS == 20);
@@ -1071,6 +1072,151 @@ void testTileRenderer() {
     printf("[PASS] Tile renderer test passed\n");
 }
 
+void assertRgbColor(Rgb888Color color, unsigned char red, unsigned char green, unsigned char blue) {
+    assert(color.red8 == red);
+    assert(color.green8 == green);
+    assert(color.blue8 == blue);
+}
+
+void setupRendererTestPalette(GraphicsMemory& graphics) {
+    assert(graphics.writePaletteColor(0, 0x00) == true);
+    assert(graphics.writePaletteColor(1, 0xFF) == true);
+    assert(graphics.writePaletteColor(2, 0xE0) == true);
+    assert(graphics.writePaletteColor(3, 0x1C) == true);
+    assert(graphics.writePaletteColor(4, 0x03) == true);
+    assert(graphics.writePaletteColor(5, 0xA9) == true);
+}
+
+void testCompleteOneTileRenderer() {
+    Memory memory;
+    GraphicsMemory graphics(memory);
+
+    Rgb888Color pixels[GraphicsMemory::TILE_PIXEL_COUNT];
+    unsigned char palettePixels[GraphicsMemory::TILE_PIXEL_COUNT];
+
+    setupRendererTestPalette(graphics);
+
+    for (int y = 0; y < GraphicsMemory::TILE_SIZE; y++) {
+        for (int x = 0; x < GraphicsMemory::TILE_SIZE; x++) {
+            unsigned char paletteIndex = (unsigned char)((x + y) % 6);
+            assert(graphics.writeTilePixel(7, x, y, paletteIndex) == true);
+        }
+    }
+
+    assert(graphics.renderTilePaletteIndices(7, palettePixels, GraphicsMemory::TILE_PIXEL_COUNT) == true);
+
+    for (int y = 0; y < GraphicsMemory::TILE_SIZE; y++) {
+        for (int x = 0; x < GraphicsMemory::TILE_SIZE; x++) {
+            int pixelNumber = GraphicsMemory::getTilePixelNumber(x, y);
+            unsigned char expected = (unsigned char)((x + y) % 6);
+            assert(palettePixels[pixelNumber] == expected);
+        }
+    }
+
+    assert(graphics.renderTile(7, pixels, GraphicsMemory::TILE_PIXEL_COUNT) == true);
+
+    assertRgbColor(pixels[0], 0x00, 0x00, 0x00);
+    assertRgbColor(pixels[1], 0xFF, 0xFF, 0xFF);
+    assertRgbColor(pixels[2], 0xFF, 0x00, 0x00);
+    assertRgbColor(pixels[3], 0x00, 0xFF, 0x00);
+    assertRgbColor(pixels[4], 0x00, 0x00, 0xFF);
+    assertRgbColor(pixels[5], 0xB6, 0x49, 0x55);
+
+    printf("[PASS] Complete one tile renderer test passed\n");
+}
+
+void testFullScreenRenderer() {
+    Memory memory;
+    GraphicsMemory graphics(memory);
+
+    static unsigned char palettePixels[GraphicsMemory::SCREEN_PIXEL_COUNT];
+    static Rgb888Color pixels[GraphicsMemory::SCREEN_PIXEL_COUNT];
+
+    setupRendererTestPalette(graphics);
+
+    assert(graphics.clearTileDefinition(2, 3) == true);
+    assert(graphics.fillTileMap(2) == true);
+
+    assert(graphics.renderScreenPaletteIndices(palettePixels, GraphicsMemory::SCREEN_PIXEL_COUNT) == true);
+
+    for (int i = 0; i < GraphicsMemory::SCREEN_PIXEL_COUNT; i++) {
+        assert(palettePixels[i] == 3);
+    }
+
+    assert(graphics.renderScreen(pixels, GraphicsMemory::SCREEN_PIXEL_COUNT) == true);
+
+    assertRgbColor(pixels[0], 0x00, 0xFF, 0x00);
+    assertRgbColor(pixels[319], 0x00, 0xFF, 0x00);
+    assertRgbColor(pixels[320], 0x00, 0xFF, 0x00);
+    assertRgbColor(pixels[GraphicsMemory::SCREEN_PIXEL_COUNT - 1], 0x00, 0xFF, 0x00);
+
+    printf("[PASS] Full screen renderer test passed\n");
+}
+
+void testRendererLiveUpdate() {
+    Memory memory;
+    GraphicsMemory graphics(memory);
+
+    Rgb888Color color;
+
+    setupRendererTestPalette(graphics);
+
+    assert(graphics.clearTileDefinition(0, 0) == true);
+    assert(graphics.fillTileMap(0) == true);
+
+    color.red8 = 0x11;
+    color.green8 = 0x22;
+    color.blue8 = 0x33;
+
+    assert(graphics.renderScreenPixel(0, 0, color) == true);
+    assertRgbColor(color, 0x00, 0x00, 0x00);
+
+    assert(graphics.writeTilePixel(0, 0, 0, 1) == true);
+    assert(graphics.renderScreenPixel(0, 0, color) == true);
+    assertRgbColor(color, 0xFF, 0xFF, 0xFF);
+
+    assert(graphics.writeTilePixel(0, 0, 0, 2) == true);
+    assert(graphics.renderScreenPixel(0, 0, color) == true);
+    assertRgbColor(color, 0xFF, 0x00, 0x00);
+
+    assert(graphics.writePaletteColor(2, 0x03) == true);
+    assert(graphics.renderScreenPixel(0, 0, color) == true);
+    assertRgbColor(color, 0x00, 0x00, 0xFF);
+
+    printf("[PASS] Renderer live update test passed\n");
+}
+
+void testRendererConnectedToVram() {
+    Memory memory;
+    GraphicsMemory graphics(memory);
+
+    Rgb888Color color;
+
+    setupRendererTestPalette(graphics);
+
+    memory.write8(GraphicsMemory::getTileMapAddress(0, 0), 5);
+    memory.write8(GraphicsMemory::getTileDefinitionBase(5), 0x21);
+
+    assert(graphics.renderScreenPixel(0, 0, color) == true);
+    assertRgbColor(color, 0xFF, 0xFF, 0xFF);
+
+    assert(graphics.renderScreenPixel(1, 0, color) == true);
+    assertRgbColor(color, 0xFF, 0x00, 0x00);
+
+    memory.write8(GraphicsMemory::getPaletteAddress(1), 0x1C);
+
+    assert(graphics.renderScreenPixel(0, 0, color) == true);
+    assertRgbColor(color, 0x00, 0xFF, 0x00);
+
+    memory.write8(GraphicsMemory::getTileMapAddress(0, 0), 6);
+    memory.write8(GraphicsMemory::getTileDefinitionBase(6), 0x04);
+
+    assert(graphics.renderScreenPixel(0, 0, color) == true);
+    assertRgbColor(color, 0x00, 0x00, 0xFF);
+
+    printf("[PASS] Renderer connected to VRAM test passed\n");
+}
+
 void testRegisterFile() {
     RegisterFile registers;
 
@@ -1670,6 +1816,46 @@ void loadGuiDemoProgram(CPU& cpu) {
     cpu.getMemory().write16(0x002A, makeSys(0x000));
 
     cpu.getMemory().write16(0x002C, makeSys(0x3FF));
+
+    GraphicsMemory graphics(cpu.getMemory());
+
+    graphics.clearPalette();
+    graphics.writePaletteColor(0, 0x00);
+    graphics.writePaletteColor(1, 0xFF);
+    graphics.writePaletteColor(2, 0xE0);
+    graphics.writePaletteColor(3, 0x1C);
+    graphics.writePaletteColor(4, 0x03);
+    graphics.writePaletteColor(5, 0xA9);
+
+    for (int tile = 0; tile < 3; tile++) {
+        graphics.clearTileDefinition(tile, 0);
+    }
+
+    for (int y = 0; y < GraphicsMemory::TILE_SIZE; y++) {
+        for (int x = 0; x < GraphicsMemory::TILE_SIZE; x++) {
+            graphics.writeTilePixel(0, x, y, (unsigned char)((x + y) % 6));
+
+            if (((x / 4) + (y / 4)) % 2 == 0) {
+                graphics.writeTilePixel(1, x, y, 1);
+            }
+            else {
+                graphics.writeTilePixel(1, x, y, 2);
+            }
+
+            if (x == 0 || y == 0 || x == 15 || y == 15) {
+                graphics.writeTilePixel(2, x, y, 4);
+            }
+            else {
+                graphics.writeTilePixel(2, x, y, 3);
+            }
+        }
+    }
+
+    for (int row = 0; row < GraphicsMemory::TILE_ROWS; row++) {
+        for (int col = 0; col < GraphicsMemory::TILE_COLUMNS; col++) {
+            graphics.writeTileIndex(col, row, (unsigned char)((row + col) % 3));
+        }
+    }
 }
 
 void handleGuiAction(CPU& cpu, GuiAction action, bool& running, int& runDelay) {
@@ -1908,6 +2094,10 @@ int main() {
     testRgb332ToRgb888Expansion();
     testTilePixelExtraction();
     testTileRenderer();
+    testCompleteOneTileRenderer();
+    testFullScreenRenderer();
+    testRendererLiveUpdate();
+    testRendererConnectedToVram();
     testRegisterFile();
     testCPUReset();
     testProgramLoader();
