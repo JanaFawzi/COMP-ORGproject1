@@ -1810,6 +1810,71 @@ void testEcallStopAudioExecution() {
     printf("[PASS] ECALL stop_audio test passed\n");
 }
 
+void testEcallRegsDumpExecution() {
+    CPU cpu;
+
+    unsigned short dumpWord = makeSys(0x050);
+
+    cpu.clearOutput();
+
+    cpu.setPC(0x7600);
+
+    cpu.getRegisters().setRegister(0, 0x0000);
+    cpu.getRegisters().setRegister(1, 0x1111);
+    cpu.getRegisters().setRegister(2, 0xEFFE);
+    cpu.getRegisters().setRegister(3, 0x3333);
+    cpu.getRegisters().setRegister(4, 0x4444);
+    cpu.getRegisters().setRegister(5, 0x5555);
+    cpu.getRegisters().setRegister(6, 0x6666);
+    cpu.getRegisters().setRegister(7, 0x7777);
+
+    cpu.getMemory().write16(0x7600, dumpWord);
+    cpu.step();
+
+    const char expected[] =
+        "REGS\n"
+        "PC=0x7602\n"
+        "SP=0xEFFE\n"
+        "x0=0x0000\n"
+        "x1=0x1111\n"
+        "x2=0xEFFE\n"
+        "x3=0x3333\n"
+        "x4=0x4444\n"
+        "x5=0x5555\n"
+        "x6=0x6666\n"
+        "x7=0x7777\n";
+
+    assert(strcmp(cpu.getOutput(), expected) == 0);
+    assert(cpu.getPC() == 0x7602);
+    assert(cpu.getLastHandler() == ZX16::SYS_TYPE);
+
+    cpu.clearOutput();
+
+    cpu.setPC(0x7602);
+    cpu.getRegisters().setRegister(1, 0xAAAA);
+    cpu.getRegisters().setRegister(6, 0x1234);
+    cpu.getMemory().write16(0x7602, dumpWord);
+    cpu.step();
+
+    const char expected2[] =
+        "REGS\n"
+        "PC=0x7604\n"
+        "SP=0xEFFE\n"
+        "x0=0x0000\n"
+        "x1=0xAAAA\n"
+        "x2=0xEFFE\n"
+        "x3=0x3333\n"
+        "x4=0x4444\n"
+        "x5=0x5555\n"
+        "x6=0x1234\n"
+        "x7=0x7777\n";
+
+    assert(strcmp(cpu.getOutput(), expected2) == 0);
+    assert(cpu.getPC() == 0x7604);
+
+    printf("[PASS] ECALL regs_dump test passed\n");
+}
+
 void testRegisterFile() {
     RegisterFile registers;
 
@@ -2703,6 +2768,7 @@ int main() {
     testEcallPlayToneExecution();
     testEcallSetVolumeExecution();
     testEcallStopAudioExecution();
+    testEcallRegsDumpExecution();
     testRegisterFile();
     testCPUReset();
     testProgramLoader();

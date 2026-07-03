@@ -96,6 +96,23 @@ void CPU::clearOutput() {
     output[0] = '\0';
 }
 
+void CPU::dumpRegisters() {
+    char text[40];
+
+    appendText("REGS\n");
+
+    sprintf(text, "PC=0x%04X\n", pc);
+    appendText(text);
+
+    sprintf(text, "SP=0x%04X\n", getSP());
+    appendText(text);
+
+    for (int i = 0; i < 8; i++) {
+        sprintf(text, "x%d=0x%04X\n", i, registers.getRegister(i));
+        appendText(text);
+    }
+}
+
 const char* CPU::getInput() {
     return input;
 }
@@ -795,7 +812,11 @@ void CPU::handleSysType(DecodedInstruction instruction) {
     if (instruction.service == 0x042) {
         requestStopAudio();
     }
-    
+
+    if (instruction.service == 0x050) {
+        dumpRegisters();
+    }
+
     if (instruction.service == 0x3FF) {
         halted = true;
     }

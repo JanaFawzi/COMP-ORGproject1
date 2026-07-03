@@ -47,6 +47,8 @@ public:
     const char* getOutput();
     void clearOutput();
 
+    void dumpRegisters();
+    
     const char* getInput();
     void clearInput();
     void setInput(const char text[]);
@@ -80,6 +82,7 @@ public:
     unsigned short getVolumePercent();
     bool setVolumePercent(unsigned short volumePercent);
     void resetVolume();
+
 
     bool isHalted();
 
