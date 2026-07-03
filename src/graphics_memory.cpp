@@ -128,6 +128,22 @@ bool GraphicsMemory::isLowNibblePixel(int x) {
     return false;
 }
 
+unsigned char GraphicsMemory::extractLowNibble(unsigned char value) {
+    return value & 0x0F;
+}
+
+unsigned char GraphicsMemory::extractHighNibble(unsigned char value) {
+    return (value >> 4) & 0x0F;
+}
+
+unsigned char GraphicsMemory::extractPaletteIndexFromTileByte(unsigned char tileByte, int x) {
+    if (isLowNibblePixel(x)) {
+        return extractLowNibble(tileByte);
+    }
+
+    return extractHighNibble(tileByte);
+}
+
 unsigned short GraphicsMemory::getTileDefinitionBase(int tileIndex) {
     if (!isValidTileIndex(tileIndex)) {
         return INVALID_ADDRESS;
@@ -573,6 +589,10 @@ bool GraphicsMemory::writeTilePixel(int tileIndex, int x, int y, unsigned char p
 }
 
 bool GraphicsMemory::readTilePixel(int tileIndex, int x, int y, unsigned char& paletteIndex) {
+    return readTilePixelPaletteIndex(tileIndex, x, y, paletteIndex);
+}
+
+bool GraphicsMemory::readTilePixelPaletteIndex(int tileIndex, int x, int y, unsigned char& paletteIndex) {
     if (!isValidTileIndex(tileIndex)) {
         return false;
     }
@@ -588,11 +608,75 @@ bool GraphicsMemory::readTilePixel(int tileIndex, int x, int y, unsigned char& p
         return false;
     }
 
-    if (isLowNibblePixel(x)) {
-        paletteIndex = byteValue & 0x0F;
+    paletteIndex = extractPaletteIndexFromTileByte(byteValue, x);
+
+    return true;
+}
+
+bool GraphicsMemory::renderTilePixel(int tileIndex, int x, int y, Rgb888Color& color) {
+    unsigned char paletteIndex = 0;
+    unsigned char rgb332 = 0;
+
+    if (!readTilePixelPaletteIndex(tileIndex, x, y, paletteIndex)) {
+        return false;
     }
-    else {
-        paletteIndex = (byteValue >> 4) & 0x0F;
+
+    if (!readPaletteColorChecked(paletteIndex, rgb332)) {
+        return false;
+    }
+
+    color = expandRgb332ToRgb888Color(rgb332);
+
+    return true;
+}
+
+bool GraphicsMemory::renderTile(int tileIndex, Rgb888Color pixels[], int pixelCount) {
+    if (!isValidTileIndex(tileIndex)) {
+        return false;
+    }
+
+    if (pixels == 0) {
+        return false;
+    }
+
+    if (pixelCount != TILE_PIXEL_COUNT) {
+        return false;
+    }
+
+    for (int y = 0; y < TILE_SIZE; y++) {
+        for (int x = 0; x < TILE_SIZE; x++) {
+            int pixelNumber = getTilePixelNumber(x, y);
+
+            if (!renderTilePixel(tileIndex, x, y, pixels[pixelNumber])) {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool GraphicsMemory::renderTilePaletteIndices(int tileIndex, unsigned char pixels[], int pixelCount) {
+    if (!isValidTileIndex(tileIndex)) {
+        return false;
+    }
+
+    if (pixels == 0) {
+        return false;
+    }
+
+    if (pixelCount != TILE_PIXEL_COUNT) {
+        return false;
+    }
+
+    for (int y = 0; y < TILE_SIZE; y++) {
+        for (int x = 0; x < TILE_SIZE; x++) {
+            int pixelNumber = getTilePixelNumber(x, y);
+
+            if (!readTilePixelPaletteIndex(tileIndex, x, y, pixels[pixelNumber])) {
+                return false;
+            }
+        }
     }
 
     return true;

@@ -25,6 +25,7 @@ public:
     static constexpr int TILE_ROWS = 15;
     static constexpr int TILE_COUNT = 16;
     static constexpr int TILE_BYTES = 128;
+    static constexpr int TILE_PIXEL_COUNT = 256;
 
     static constexpr unsigned short GRAPHICS_BASE = 0xF000;
     static constexpr unsigned short GRAPHICS_END = 0xFA0F;
@@ -75,6 +76,10 @@ public:
     static int getTilePixelNumber(int x, int y);
     static int getTilePixelByteOffset(int x, int y);
     static bool isLowNibblePixel(int x);
+
+    static unsigned char extractLowNibble(unsigned char value);
+    static unsigned char extractHighNibble(unsigned char value);
+    static unsigned char extractPaletteIndexFromTileByte(unsigned char tileByte, int x);
 
     static unsigned short getTileDefinitionBase(int tileIndex);
     static unsigned short getTilePixelByteAddress(int tileIndex, int x, int y);
@@ -136,6 +141,11 @@ public:
 
     bool writeTilePixel(int tileIndex, int x, int y, unsigned char paletteIndex);
     bool readTilePixel(int tileIndex, int x, int y, unsigned char& paletteIndex);
+    bool readTilePixelPaletteIndex(int tileIndex, int x, int y, unsigned char& paletteIndex);
+
+    bool renderTilePixel(int tileIndex, int x, int y, Rgb888Color& color);
+    bool renderTile(int tileIndex, Rgb888Color pixels[], int pixelCount);
+    bool renderTilePaletteIndices(int tileIndex, unsigned char pixels[], int pixelCount);
 
     bool writePaletteColor(int paletteIndex, unsigned char rgb332);
     unsigned char readPaletteColor(int paletteIndex);

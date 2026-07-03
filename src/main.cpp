@@ -76,6 +76,7 @@ void testGraphicsMemoryManager() {
     assert(GraphicsMemory::TILE_ROWS == 15);
     assert(GraphicsMemory::TILE_COUNT == 16);
     assert(GraphicsMemory::TILE_BYTES == 128);
+    assert(GraphicsMemory::TILE_PIXEL_COUNT == 256);
 
     assert(GraphicsMemory::TILE_MAP_USED_SIZE == 300);
     assert(GraphicsMemory::TILE_MAP_USED_SIZE == GraphicsMemory::TILE_COLUMNS * GraphicsMemory::TILE_ROWS);
@@ -915,6 +916,160 @@ void testRgb332ToRgb888Expansion() {
     printf("[PASS] RGB332 to RGB888 expansion test passed\n");
 }
 
+void testTilePixelExtraction() {
+    Memory memory;
+    GraphicsMemory graphics(memory);
+
+    unsigned char value = 0;
+
+    assert(GraphicsMemory::extractLowNibble(0xBA) == 0x0A);
+    assert(GraphicsMemory::extractHighNibble(0xBA) == 0x0B);
+
+    assert(GraphicsMemory::extractPaletteIndexFromTileByte(0xBA, 0) == 0x0A);
+    assert(GraphicsMemory::extractPaletteIndexFromTileByte(0xBA, 1) == 0x0B);
+    assert(GraphicsMemory::extractPaletteIndexFromTileByte(0xBA, 14) == 0x0A);
+    assert(GraphicsMemory::extractPaletteIndexFromTileByte(0xBA, 15) == 0x0B);
+
+    assert(graphics.writeTileDefinitionByte(6, 0, 0xBA) == true);
+
+    value = 0;
+    assert(graphics.readTilePixelPaletteIndex(6, 0, 0, value) == true);
+    assert(value == 0x0A);
+
+    value = 0;
+    assert(graphics.readTilePixelPaletteIndex(6, 1, 0, value) == true);
+    assert(value == 0x0B);
+
+    assert(graphics.writeTileDefinitionByte(6, 1, 0xC5) == true);
+
+    value = 0;
+    assert(graphics.readTilePixelPaletteIndex(6, 2, 0, value) == true);
+    assert(value == 0x05);
+
+    value = 0;
+    assert(graphics.readTilePixelPaletteIndex(6, 3, 0, value) == true);
+    assert(value == 0x0C);
+
+    assert(graphics.writeTileDefinitionByte(6, 127, 0xD7) == true);
+
+    value = 0;
+    assert(graphics.readTilePixelPaletteIndex(6, 14, 15, value) == true);
+    assert(value == 0x07);
+
+    value = 0;
+    assert(graphics.readTilePixelPaletteIndex(6, 15, 15, value) == true);
+    assert(value == 0x0D);
+
+    value = 0xEE;
+    assert(graphics.readTilePixelPaletteIndex(16, 0, 0, value) == false);
+    assert(value == 0xEE);
+
+    value = 0xDD;
+    assert(graphics.readTilePixelPaletteIndex(6, 16, 0, value) == false);
+    assert(value == 0xDD);
+
+    value = 0xCC;
+    assert(graphics.readTilePixelPaletteIndex(6, 0, 16, value) == false);
+    assert(value == 0xCC);
+
+    printf("[PASS] Tile pixel extraction test passed\n");
+}
+
+void testTileRenderer() {
+    Memory memory;
+    GraphicsMemory graphics(memory);
+
+    Rgb888Color pixels[GraphicsMemory::TILE_PIXEL_COUNT];
+    Rgb888Color color;
+    unsigned char palettePixels[GraphicsMemory::TILE_PIXEL_COUNT];
+
+    for (int i = 0; i < GraphicsMemory::TILE_PIXEL_COUNT; i++) {
+        pixels[i].red8 = 0x11;
+        pixels[i].green8 = 0x22;
+        pixels[i].blue8 = 0x33;
+        palettePixels[i] = 0xEE;
+    }
+
+    assert(graphics.writePaletteColor(0, 0x00) == true);
+    assert(graphics.writePaletteColor(1, 0xFF) == true);
+    assert(graphics.writePaletteColor(2, 0xE0) == true);
+    assert(graphics.writePaletteColor(3, 0x1C) == true);
+    assert(graphics.writePaletteColor(4, 0x03) == true);
+    assert(graphics.writePaletteColor(5, 0xA9) == true);
+
+    assert(graphics.clearTileDefinition(4, 0) == true);
+
+    assert(graphics.writeTilePixel(4, 0, 0, 1) == true);
+    assert(graphics.writeTilePixel(4, 1, 0, 2) == true);
+    assert(graphics.writeTilePixel(4, 2, 0, 3) == true);
+    assert(graphics.writeTilePixel(4, 8, 8, 5) == true);
+    assert(graphics.writeTilePixel(4, 15, 15, 4) == true);
+
+    assert(graphics.renderTilePaletteIndices(4, palettePixels, GraphicsMemory::TILE_PIXEL_COUNT) == true);
+
+    assert(palettePixels[0] == 1);
+    assert(palettePixels[1] == 2);
+    assert(palettePixels[2] == 3);
+    assert(palettePixels[3] == 0);
+    assert(palettePixels[8 + 8 * GraphicsMemory::TILE_SIZE] == 5);
+    assert(palettePixels[255] == 4);
+
+    assert(graphics.renderTile(4, pixels, GraphicsMemory::TILE_PIXEL_COUNT) == true);
+
+    assert(pixels[0].red8 == 0xFF);
+    assert(pixels[0].green8 == 0xFF);
+    assert(pixels[0].blue8 == 0xFF);
+
+    assert(pixels[1].red8 == 0xFF);
+    assert(pixels[1].green8 == 0x00);
+    assert(pixels[1].blue8 == 0x00);
+
+    assert(pixels[2].red8 == 0x00);
+    assert(pixels[2].green8 == 0xFF);
+    assert(pixels[2].blue8 == 0x00);
+
+    assert(pixels[3].red8 == 0x00);
+    assert(pixels[3].green8 == 0x00);
+    assert(pixels[3].blue8 == 0x00);
+
+    int middlePixel = 8 + 8 * GraphicsMemory::TILE_SIZE;
+
+    assert(pixels[middlePixel].red8 == 0xB6);
+    assert(pixels[middlePixel].green8 == 0x49);
+    assert(pixels[middlePixel].blue8 == 0x55);
+
+    assert(pixels[255].red8 == 0x00);
+    assert(pixels[255].green8 == 0x00);
+    assert(pixels[255].blue8 == 0xFF);
+
+    color.red8 = 0x11;
+    color.green8 = 0x22;
+    color.blue8 = 0x33;
+
+    assert(graphics.renderTilePixel(4, 0, 0, color) == true);
+    assert(color.red8 == 0xFF);
+    assert(color.green8 == 0xFF);
+    assert(color.blue8 == 0xFF);
+
+    color.red8 = 0x11;
+    color.green8 = 0x22;
+    color.blue8 = 0x33;
+
+    assert(graphics.renderTilePixel(16, 0, 0, color) == false);
+    assert(color.red8 == 0x11);
+    assert(color.green8 == 0x22);
+    assert(color.blue8 == 0x33);
+
+    assert(graphics.renderTile(16, pixels, GraphicsMemory::TILE_PIXEL_COUNT) == false);
+    assert(graphics.renderTile(4, 0, GraphicsMemory::TILE_PIXEL_COUNT) == false);
+    assert(graphics.renderTile(4, pixels, GraphicsMemory::TILE_PIXEL_COUNT - 1) == false);
+
+    assert(graphics.renderTilePaletteIndices(16, palettePixels, GraphicsMemory::TILE_PIXEL_COUNT) == false);
+    assert(graphics.renderTilePaletteIndices(4, 0, GraphicsMemory::TILE_PIXEL_COUNT) == false);
+    assert(graphics.renderTilePaletteIndices(4, palettePixels, GraphicsMemory::TILE_PIXEL_COUNT - 1) == false);
+
+    printf("[PASS] Tile renderer test passed\n");
+}
 
 void testRegisterFile() {
     RegisterFile registers;
@@ -1746,6 +1901,13 @@ int main() {
     testMemory();
     testGraphicsMemoryManager();
     testGraphicsMemoryProtection();
+    testTileMapAccess();
+    testTileDefinitionAccess();
+    testPaletteMemory();
+    testRgb332Decode();
+    testRgb332ToRgb888Expansion();
+    testTilePixelExtraction();
+    testTileRenderer();
     testRegisterFile();
     testCPUReset();
     testProgramLoader();
