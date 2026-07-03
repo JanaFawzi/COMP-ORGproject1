@@ -18,6 +18,7 @@ void CPU::reset() {
 
     clearOutput();
     resetRng();
+    clearKeyboardKey();
 
     halted = false;
 }
@@ -142,6 +143,32 @@ unsigned short CPU::nextRandom() {
     rngState = (unsigned short)x;
 
     return rngState;
+}
+
+bool CPU::isValidKeyboardCode(unsigned short keyCode) {
+    if (keyCode <= ZX16_KEY_ESCAPE) {
+        return true;
+    }
+
+    return false;
+}
+
+unsigned short CPU::getKeyboardKey() {
+    return keyboardKey;
+}
+
+bool CPU::setKeyboardKey(unsigned short keyCode) {
+    if (!isValidKeyboardCode(keyCode)) {
+        return false;
+    }
+
+    keyboardKey = keyCode;
+
+    return true;
+}
+
+void CPU::clearKeyboardKey() {
+    keyboardKey = ZX16_KEY_NONE;
 }
 
 bool CPU::isHalted() {
@@ -634,6 +661,10 @@ void CPU::handleSysType(DecodedInstruction instruction) {
         unsigned short value = nextRandom();
 
         registers.setRegister(6, value);
+    }
+
+    if (instruction.service == 0x030) {
+        registers.setRegister(6, keyboardKey);
     }
 
     if (instruction.service == 0x3FF) {

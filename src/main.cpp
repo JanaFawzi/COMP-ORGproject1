@@ -1523,6 +1523,80 @@ void testEcallRandomXorshiftExecution() {
     printf("[PASS] ECALL random xorshift test passed\n");
 }
 
+
+void testKeyboardEcallDetectKeyPress() {
+    CPU cpu;
+
+    unsigned short keyboardWord = makeSys(0x030);
+
+    assert(cpu.getKeyboardKey() == CPU::ZX16_KEY_NONE);
+
+    cpu.setPC(0x6000);
+    cpu.getMemory().write16(0x6000, keyboardWord);
+    cpu.step();
+
+    assert(cpu.getRegisters().getRegister(6) == CPU::ZX16_KEY_NONE);
+    assert(cpu.getPC() == 0x6002);
+    assert(cpu.getLastHandler() == ZX16::SYS_TYPE);
+
+    assert(cpu.setKeyboardKey(CPU::ZX16_KEY_UP) == true);
+    assert(cpu.getKeyboardKey() == CPU::ZX16_KEY_UP);
+
+    cpu.setPC(0x6002);
+    cpu.getMemory().write16(0x6002, keyboardWord);
+    cpu.step();
+
+    assert(cpu.getRegisters().getRegister(6) == CPU::ZX16_KEY_UP);
+    assert(cpu.getPC() == 0x6004);
+
+    assert(cpu.setKeyboardKey(CPU::ZX16_KEY_RIGHT) == true);
+    assert(cpu.getKeyboardKey() == CPU::ZX16_KEY_RIGHT);
+
+    cpu.setPC(0x6004);
+    cpu.getMemory().write16(0x6004, keyboardWord);
+    cpu.step();
+
+    assert(cpu.getRegisters().getRegister(6) == CPU::ZX16_KEY_RIGHT);
+    assert(cpu.getPC() == 0x6006);
+
+    cpu.clearKeyboardKey();
+    assert(cpu.getKeyboardKey() == CPU::ZX16_KEY_NONE);
+
+    cpu.setPC(0x6006);
+    cpu.getMemory().write16(0x6006, keyboardWord);
+    cpu.step();
+
+    assert(cpu.getRegisters().getRegister(6) == CPU::ZX16_KEY_NONE);
+    assert(cpu.getPC() == 0x6008);
+
+    assert(cpu.setKeyboardKey(99) == false);
+    assert(cpu.getKeyboardKey() == CPU::ZX16_KEY_NONE);
+
+    printf("[PASS] Keyboard ECALL key press test passed\n");
+}
+
+void testRaylibKeyboardMappingDirections() {
+    assert(Gui::mapRaylibKeyToZx16(KEY_UP) == CPU::ZX16_KEY_UP);
+    assert(Gui::mapRaylibKeyToZx16(KEY_DOWN) == CPU::ZX16_KEY_DOWN);
+    assert(Gui::mapRaylibKeyToZx16(KEY_LEFT) == CPU::ZX16_KEY_LEFT);
+    assert(Gui::mapRaylibKeyToZx16(KEY_RIGHT) == CPU::ZX16_KEY_RIGHT);
+
+    assert(Gui::mapRaylibKeyToZx16(KEY_W) == CPU::ZX16_KEY_UP);
+    assert(Gui::mapRaylibKeyToZx16(KEY_S) == CPU::ZX16_KEY_DOWN);
+    assert(Gui::mapRaylibKeyToZx16(KEY_A) == CPU::ZX16_KEY_LEFT);
+    assert(Gui::mapRaylibKeyToZx16(KEY_D) == CPU::ZX16_KEY_RIGHT);
+
+    assert(Gui::mapRaylibKeyToZx16(KEY_SPACE) == CPU::ZX16_KEY_SPACE);
+    assert(Gui::mapRaylibKeyToZx16(KEY_ENTER) == CPU::ZX16_KEY_ENTER);
+    assert(Gui::mapRaylibKeyToZx16(KEY_ESCAPE) == CPU::ZX16_KEY_ESCAPE);
+
+    assert(Gui::mapRaylibKeyToZx16(0) == CPU::ZX16_KEY_NONE);
+    assert(Gui::mapRaylibKeyToZx16(9999) == CPU::ZX16_KEY_NONE);
+
+    printf("[PASS] Keyboard mapping directions test passed\n");
+}
+
+
 void testRegisterFile() {
     RegisterFile registers;
 
@@ -2411,6 +2485,8 @@ int main() {
     testRngStateReset();
     testEcallSeedRngExecution();
     testEcallRandomXorshiftExecution();
+    testKeyboardEcallDetectKeyPress();
+    testRaylibKeyboardMappingDirections();
     testRegisterFile();
     testCPUReset();
     testProgramLoader();

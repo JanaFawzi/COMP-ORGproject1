@@ -9,6 +9,15 @@ class CPU {
 public:
     static constexpr unsigned short DEFAULT_RNG_SEED = 0xACE1;
 
+    static constexpr unsigned short ZX16_KEY_NONE = 0;
+    static constexpr unsigned short ZX16_KEY_UP = 1;
+    static constexpr unsigned short ZX16_KEY_DOWN = 2;
+    static constexpr unsigned short ZX16_KEY_LEFT = 3;
+    static constexpr unsigned short ZX16_KEY_RIGHT = 4;
+    static constexpr unsigned short ZX16_KEY_SPACE = 5;
+    static constexpr unsigned short ZX16_KEY_ENTER = 6;
+    static constexpr unsigned short ZX16_KEY_ESCAPE = 7;
+
     CPU();
 
     void reset();
@@ -41,6 +50,11 @@ public:
     void seedRng(unsigned short seed);
     unsigned short nextRandom();
 
+    static bool isValidKeyboardCode(unsigned short keyCode);
+    unsigned short getKeyboardKey();
+    bool setKeyboardKey(unsigned short keyCode);
+    void clearKeyboardKey();
+
     bool isHalted();
 
 private:
@@ -62,6 +76,7 @@ private:
     int inputPosition;
 
     unsigned short rngState;
+    unsigned short keyboardKey;
 
     bool halted;
 

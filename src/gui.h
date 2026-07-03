@@ -18,6 +18,8 @@ public:
     static float getTargetFrameTimeMs();
     static bool isStableFrameTimeMs(float frameTimeMs);
 
+    static unsigned short mapRaylibKeyToZx16(int raylibKey);
+
     void open();
 
     bool shouldClose();
@@ -39,6 +41,8 @@ private:
     int height;
 
     static const int TARGET_FPS = 60;
+
+    void updateKeyboardFromRaylib(CPU& cpu);
 
     void drawStatusPanel(
         const char testStatus[],

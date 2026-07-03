@@ -32,6 +32,38 @@ bool Gui::isStableFrameTimeMs(float frameTimeMs) {
     return true;
 }
 
+unsigned short Gui::mapRaylibKeyToZx16(int raylibKey) {
+    if (raylibKey == KEY_UP || raylibKey == KEY_W) {
+        return CPU::ZX16_KEY_UP;
+    }
+
+    if (raylibKey == KEY_DOWN || raylibKey == KEY_S) {
+        return CPU::ZX16_KEY_DOWN;
+    }
+
+    if (raylibKey == KEY_LEFT || raylibKey == KEY_A) {
+        return CPU::ZX16_KEY_LEFT;
+    }
+
+    if (raylibKey == KEY_RIGHT || raylibKey == KEY_D) {
+        return CPU::ZX16_KEY_RIGHT;
+    }
+
+    if (raylibKey == KEY_SPACE) {
+        return CPU::ZX16_KEY_SPACE;
+    }
+
+    if (raylibKey == KEY_ENTER) {
+        return CPU::ZX16_KEY_ENTER;
+    }
+
+    if (raylibKey == KEY_ESCAPE) {
+        return CPU::ZX16_KEY_ESCAPE;
+    }
+
+    return CPU::ZX16_KEY_NONE;
+}
+
 void Gui::open() {
     InitWindow(width, height, "ZX16 Simulator");
     SetTargetFPS(getTargetFps());
@@ -54,6 +86,8 @@ GuiAction Gui::draw(
 
     ClearBackground(BLACK);
 
+    updateKeyboardFromRaylib(cpu);
+
     DrawText("ZX16 Simulator", 490, 15, 22, RAYWHITE);
 
     drawStatusPanel(testStatus, frameNumber, running, cpu);
@@ -68,6 +102,46 @@ GuiAction Gui::draw(
     return action;
 }
 
+void Gui::updateKeyboardFromRaylib(CPU& cpu) {
+    unsigned short keyCode = CPU::ZX16_KEY_NONE;
+
+    if (IsKeyDown(KEY_UP)) {
+        keyCode = mapRaylibKeyToZx16(KEY_UP);
+    }
+    else if (IsKeyDown(KEY_W)) {
+        keyCode = mapRaylibKeyToZx16(KEY_W);
+    }
+    else if (IsKeyDown(KEY_DOWN)) {
+        keyCode = mapRaylibKeyToZx16(KEY_DOWN);
+    }
+    else if (IsKeyDown(KEY_S)) {
+        keyCode = mapRaylibKeyToZx16(KEY_S);
+    }
+    else if (IsKeyDown(KEY_LEFT)) {
+        keyCode = mapRaylibKeyToZx16(KEY_LEFT);
+    }
+    else if (IsKeyDown(KEY_A)) {
+        keyCode = mapRaylibKeyToZx16(KEY_A);
+    }
+    else if (IsKeyDown(KEY_RIGHT)) {
+        keyCode = mapRaylibKeyToZx16(KEY_RIGHT);
+    }
+    else if (IsKeyDown(KEY_D)) {
+        keyCode = mapRaylibKeyToZx16(KEY_D);
+    }
+    else if (IsKeyDown(KEY_SPACE)) {
+        keyCode = mapRaylibKeyToZx16(KEY_SPACE);
+    }
+    else if (IsKeyDown(KEY_ENTER)) {
+        keyCode = mapRaylibKeyToZx16(KEY_ENTER);
+    }
+    else if (IsKeyDown(KEY_ESCAPE)) {
+        keyCode = mapRaylibKeyToZx16(KEY_ESCAPE);
+    }
+
+    cpu.setKeyboardKey(keyCode);
+}
+
 void Gui::drawStatusPanel(
     const char testStatus[],
     int frameNumber,
@@ -80,12 +154,14 @@ void Gui::drawStatusPanel(
     char stateText[40];
     char fpsText[40];
     char frameTimeText[40];
+    char keyText[40];
 
     sprintf(frameText, "Frame update: %d", frameNumber);
     sprintf(pcText, "PC: 0x%04X", cpu.getPC());
     sprintf(spText, "SP: 0x%04X", cpu.getSP());
     sprintf(fpsText, "Target FPS: %d", getTargetFps());
     sprintf(frameTimeText, "Target frame: %.2f ms", getTargetFrameTimeMs());
+    sprintf(keyText, "Keyboard key: %d", cpu.getKeyboardKey());
 
     if (cpu.isHalted()) {
         sprintf(stateText, "CPU state: HALTED");
@@ -115,6 +191,7 @@ void Gui::drawStatusPanel(
     DrawText(frameText, 45, 400, 14, GREEN);
     DrawText(fpsText, 45, 425, 14, GREEN);
     DrawText(frameTimeText, 45, 450, 14, GREEN);
+    DrawText(keyText, 45, 475, 14, GREEN);
 }
 
 void Gui::drawConsolePanel(const char consoleText[]) {
