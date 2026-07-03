@@ -159,6 +159,13 @@ void Gui::updateAudioFromCpu(CPU& cpu) {
         SetMasterVolume(volume);
     }
 
+    if (cpu.hasPendingStopAudio()) {
+        stopAudio();
+        cpu.clearStopAudioRequest();
+        cpu.clearToneRequest();
+        return;
+    }
+    
     if (!cpu.hasPendingTone()) {
         return;
     }
@@ -238,6 +245,19 @@ bool Gui::playTone(unsigned short frequency, unsigned short durationMs) {
     PlaySound(guiToneSound);
 
     return true;
+}
+
+bool Gui::stopAudio() {
+    if (!guiAudioReady) {
+        return false;
+    }
+
+    if (guiToneLoaded) {
+        StopSound(guiToneSound);
+        return true;
+    }
+
+    return false;
 }
 
 void Gui::drawStatusPanel(

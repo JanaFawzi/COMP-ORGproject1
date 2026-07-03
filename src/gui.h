@@ -46,6 +46,7 @@ private:
 
     void updateAudioFromCpu(CPU& cpu);
     bool playTone(unsigned short frequency, unsigned short durationMs);
+    bool stopAudio();
 
     void drawStatusPanel(
         const char testStatus[],

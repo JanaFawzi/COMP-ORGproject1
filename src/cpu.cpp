@@ -25,6 +25,9 @@ void CPU::reset() {
     tonePending = false;
     toneRequestId = 0;
 
+    stopAudioPending = false;
+    stopAudioRequestId = 0;
+
     resetVolume();
 
     halted = false;
@@ -231,6 +234,27 @@ void CPU::clearToneRequest() {
     toneFrequency = 0;
     toneDurationMs = 0;
     tonePending = false;
+}
+
+bool CPU::requestStopAudio() {
+    clearToneRequest();
+
+    stopAudioPending = true;
+    stopAudioRequestId++;
+
+    return true;
+}
+
+bool CPU::hasPendingStopAudio() {
+    return stopAudioPending;
+}
+
+unsigned int CPU::getStopAudioRequestId() {
+    return stopAudioRequestId;
+}
+
+void CPU::clearStopAudioRequest() {
+    stopAudioPending = false;
 }
 
 bool CPU::isValidVolumePercent(unsigned short volumePercentValue) {
@@ -761,13 +785,17 @@ void CPU::handleSysType(DecodedInstruction instruction) {
 
         requestTone(frequency, durationMs);
     }
-    
+
     if (instruction.service == 0x041) {
         unsigned short newVolume = registers.getRegister(6);
 
         setVolumePercent(newVolume);
     }
 
+    if (instruction.service == 0x042) {
+        requestStopAudio();
+    }
+    
     if (instruction.service == 0x3FF) {
         halted = true;
     }

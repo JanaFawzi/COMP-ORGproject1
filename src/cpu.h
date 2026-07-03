@@ -71,6 +71,11 @@ public:
     unsigned int getToneRequestId();
     void clearToneRequest();
 
+    bool requestStopAudio();
+    bool hasPendingStopAudio();
+    unsigned int getStopAudioRequestId();
+    void clearStopAudioRequest();
+
     static bool isValidVolumePercent(unsigned short volumePercent);
     unsigned short getVolumePercent();
     bool setVolumePercent(unsigned short volumePercent);
@@ -104,8 +109,11 @@ private:
     bool tonePending;
     unsigned int toneRequestId;
 
+    bool stopAudioPending;
+    unsigned int stopAudioRequestId;
+
     unsigned short volumePercent;
-    
+
     bool halted;
 
     void dispatch(DecodedInstruction instruction);

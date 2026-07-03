@@ -1755,6 +1755,61 @@ void testEcallSetVolumeExecution() {
     printf("[PASS] ECALL set_volume test passed\n");
 }
 
+void testEcallStopAudioExecution() {
+    CPU cpu;
+
+    unsigned short stopWord = makeSys(0x042);
+
+    assert(cpu.hasPendingStopAudio() == false);
+    assert(cpu.getStopAudioRequestId() == 0);
+
+    assert(cpu.requestTone(440, 500) == true);
+    assert(cpu.hasPendingTone() == true);
+    assert(cpu.getToneFrequency() == 440);
+    assert(cpu.getToneDurationMs() == 500);
+    assert(cpu.getToneRequestId() == 1);
+
+    cpu.setPC(0x7400);
+    cpu.getMemory().write16(0x7400, stopWord);
+    cpu.step();
+
+    assert(cpu.hasPendingStopAudio() == true);
+    assert(cpu.getStopAudioRequestId() == 1);
+    assert(cpu.hasPendingTone() == false);
+    assert(cpu.getToneFrequency() == 0);
+    assert(cpu.getToneDurationMs() == 0);
+    assert(cpu.getPC() == 0x7402);
+    assert(cpu.getLastHandler() == ZX16::SYS_TYPE);
+
+    cpu.clearStopAudioRequest();
+
+    assert(cpu.hasPendingStopAudio() == false);
+    assert(cpu.getStopAudioRequestId() == 1);
+
+    cpu.setPC(0x7402);
+    cpu.getMemory().write16(0x7402, stopWord);
+    cpu.step();
+
+    assert(cpu.hasPendingStopAudio() == true);
+    assert(cpu.getStopAudioRequestId() == 2);
+    assert(cpu.hasPendingTone() == false);
+    assert(cpu.getPC() == 0x7404);
+
+    cpu.clearStopAudioRequest();
+
+    assert(cpu.requestStopAudio() == true);
+    assert(cpu.hasPendingStopAudio() == true);
+    assert(cpu.getStopAudioRequestId() == 3);
+
+    cpu.reset();
+
+    assert(cpu.hasPendingStopAudio() == false);
+    assert(cpu.getStopAudioRequestId() == 0);
+    assert(cpu.hasPendingTone() == false);
+
+    printf("[PASS] ECALL stop_audio test passed\n");
+}
+
 void testRegisterFile() {
     RegisterFile registers;
 
@@ -2647,6 +2702,7 @@ int main() {
     testRaylibKeyboardMappingDirections();
     testEcallPlayToneExecution();
     testEcallSetVolumeExecution();
+    testEcallStopAudioExecution();
     testRegisterFile();
     testCPUReset();
     testProgramLoader();
