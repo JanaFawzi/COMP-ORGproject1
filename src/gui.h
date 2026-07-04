@@ -7,7 +7,8 @@ enum GuiAction {
     GUI_ACTION_NONE = 0,
     GUI_ACTION_RUN_PAUSE = 1,
     GUI_ACTION_STEP = 2,
-    GUI_ACTION_RESET = 3
+    GUI_ACTION_STEP_OVER = 3,
+    GUI_ACTION_RESET = 4
 };
 
 class Gui {

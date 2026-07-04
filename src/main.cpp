@@ -2193,6 +2193,60 @@ void testInstructionFields() {
     printf("[PASS] Instruction fields test passed\n");
 }
 
+void testStepOverSkipsFunctionBody() {
+    CPU cpu;
+
+    unsigned short randomWord = makeSys(0x021);
+
+    // funct4=0xC (JALR), rs2=3 (jump target reg), rd=1 (return-addr reg), func3=0, opcode=0
+    unsigned short jalrWord = (unsigned short)((0xC << 12) | (3 << 9) | (1 << 6));
+
+    // funct4=0xB (JR), rd=1 (register holding the address to jump to), opcode=0
+    unsigned short jrWord = (unsigned short)((0xB << 12) | (1 << 6));
+
+    assert(CPU::isCallInstructionWord(jalrWord) == true);
+    assert(CPU::isCallInstructionWord(jrWord) == false);
+    assert(CPU::isCallInstructionWord(randomWord) == false);
+
+    cpu.setPC(0x7000);
+    cpu.seedRng(0x1234);
+
+    cpu.getRegisters().setRegister(3, 0x7100);
+
+    cpu.getMemory().write16(0x7000, jalrWord);
+    cpu.getMemory().write16(0x7002, randomWord);
+
+    cpu.getMemory().write16(0x7100, randomWord);
+    cpu.getMemory().write16(0x7102, randomWord);
+    cpu.getMemory().write16(0x7104, jrWord);
+
+    bool executed = cpu.stepOver();
+
+    assert(executed == true);
+    assert(cpu.getPC() == 0x7002);
+    assert(cpu.getRegisters().getRegister(1) == 0x7002);
+    assert(cpu.getRegisters().getRegister(6) == 0x0020);
+    assert(cpu.hasBreakpointHit() == false);
+
+    cpu.step();
+
+    assert(cpu.getPC() == 0x7004);
+    assert(cpu.getRegisters().getRegister(6) == 0x3828);
+
+    cpu.setPC(0x7200);
+    cpu.getMemory().write16(0x7200, randomWord);
+    cpu.seedRng(0x1234);
+    cpu.getRegisters().setRegister(6, 0);
+
+    executed = cpu.stepOver();
+
+    assert(executed == true);
+    assert(cpu.getPC() == 0x7202);
+    assert(cpu.getRegisters().getRegister(6) == 0x3830);
+
+    printf("[PASS] Step over skips function body test passed\n");
+}
+
 void testExecutionDispatcher() {
     CPU cpu;
 
@@ -2713,26 +2767,40 @@ void loadGuiDemoProgram(CPU& cpu) {
 }
 
 void handleGuiAction(CPU& cpu, GuiAction action, bool& running, int& runDelay) {
+    if (action == GUI_ACTION_NONE) {
+        return;
+    }
+
     if (action == GUI_ACTION_RUN_PAUSE) {
         if (!cpu.isHalted()) {
             running = !running;
         }
+        runDelay = 0;
+        return;
     }
 
     if (action == GUI_ACTION_STEP) {
         if (!running && !cpu.isHalted()) {
+            cpu.clearBreakpointHit();
             cpu.step();
         }
+        runDelay = 0;
+        return;
+    }
+
+    if (action == GUI_ACTION_STEP_OVER) {
+        if (!running && !cpu.isHalted()) {
+            cpu.stepOver();
+        }
+
+        runDelay = 0;
+        return;
     }
 
     if (action == GUI_ACTION_RESET) {
         loadGuiDemoProgram(cpu);
         running = false;
         runDelay = 0;
-    }
-
-    if (cpu.isHalted()) {
-        running = false;
     }
 }
 
@@ -3130,7 +3198,7 @@ int main() {
     testFinalBinPrograms();
 
     testCurrentPcHighlightMovesCorrectly();
-
+    testStepOverSkipsFunctionBody();
     
 
     CPU guiCpu;

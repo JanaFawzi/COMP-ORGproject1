@@ -730,26 +730,30 @@ GuiAction Gui::drawControlPanel(bool running, bool halted) {
     DrawText("Controls", 335, 255, 18, GREEN);
 
     if (halted) {
-        if (drawButton(335, 295, 70, 30, "Run")) {
+        if (drawButton(325, 295, 55, 30, "Run")) {
             action = GUI_ACTION_RUN_PAUSE;
         }
     }
     else if (running) {
-        if (drawButton(335, 295, 70, 30, "Pause")) {
+        if (drawButton(325, 295, 55, 30, "Pause")) {
             action = GUI_ACTION_RUN_PAUSE;
         }
     }
     else {
-        if (drawButton(335, 295, 70, 30, "Run")) {
+        if (drawButton(325, 295, 55, 30, "Run")) {
             action = GUI_ACTION_RUN_PAUSE;
         }
     }
 
-    if (drawButton(425, 295, 70, 30, "Step")) {
+    if (drawButton(390, 295, 55, 30, "Step")) {
         action = GUI_ACTION_STEP;
     }
 
-    if (drawButton(515, 295, 70, 30, "Reset")) {
+    if (drawButton(455, 295, 55, 30, "Over")) {
+        action = GUI_ACTION_STEP_OVER;
+    }
+
+    if (drawButton(520, 295, 55, 30, "Reset")) {
         action = GUI_ACTION_RESET;
     }
 
