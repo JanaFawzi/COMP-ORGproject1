@@ -1356,6 +1356,14 @@ void Gui::clearCursorAddress() {
     cursorAddressSelected = false;
 }
 
+void Gui::resetDebugState() {
+    clearCursorAddress();
+
+    if (guiToneLoaded) {
+        stopAudio();
+    }
+}
+
 unsigned short Gui::getMemoryCursorAddressFromClick(
     int mouseX,
     int mouseY,

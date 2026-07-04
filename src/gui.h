@@ -42,6 +42,8 @@ public:
     unsigned short getCursorAddress();
     bool setCursorAddress(unsigned short address);
     void clearCursorAddress();
+    
+    void resetDebugState();
 
     static unsigned short getMemoryCursorAddressFromClick(
         int mouseX,

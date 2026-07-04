@@ -2758,15 +2758,20 @@ void loadGuiDemoProgram(CPU& cpu) {
         }
     }
 
-    cpu.getRegisters().setRegister(1, 0x1111);
-    cpu.getRegisters().setRegister(3, 0x3333);
-    cpu.getRegisters().setRegister(6, 0x6666);
-
     cpu.getMemory().write16(0x0020, makeSys(0x050));
     cpu.getMemory().write16(0x0022, makeSys(0x3FF));
 }
 
-void handleGuiAction(CPU& cpu, GuiAction action, bool& running, int& runDelay) {
+void resetWholeSimulator(Gui& gui, CPU& cpu, bool& running, int& runDelay) {
+    loadGuiDemoProgram(cpu);
+
+    gui.resetDebugState();
+
+    running = false;
+    runDelay = 0;
+}
+
+void handleGuiAction(Gui& gui, CPU& cpu, GuiAction action, bool& running, int& runDelay) {
     if (action == GUI_ACTION_RUN_PAUSE) {
         if (!cpu.isHalted()) {
             running = !running;
@@ -2780,9 +2785,8 @@ void handleGuiAction(CPU& cpu, GuiAction action, bool& running, int& runDelay) {
     }
 
     if (action == GUI_ACTION_RESET) {
-        loadGuiDemoProgram(cpu);
-        running = false;
-        runDelay = 0;
+        resetWholeSimulator(gui, cpu, running, runDelay);
+        return;
     }
 
     if (cpu.isHalted()) {
@@ -2790,8 +2794,112 @@ void handleGuiAction(CPU& cpu, GuiAction action, bool& running, int& runDelay) {
     }
 }
 
+void testEntireSimulatorReset() {
+    Gui gui;
+    CPU cpu;
+
+    bool running = true;
+    int runDelay = 17;
+
+    loadGuiDemoProgram(cpu);
+
+    unsigned short expectedFirstWord = cpu.getMemory().read16(0x0020);
+    unsigned short expectedSecondWord = cpu.getMemory().read16(0x0022);
+    unsigned char expectedPalette0 = cpu.getMemory().read8(0xFA00);
+    unsigned char expectedPalette1 = cpu.getMemory().read8(0xFA01);
+
+    cpu.setPC(0x6000);
+
+    for (int i = 0; i < 8; i++) {
+        cpu.getRegisters().setRegister(i, (unsigned short)(0x1110 + i));
+    }
+
+    cpu.setSP(0xABCD);
+
+    cpu.getMemory().write16(0x0020, 0xAAAA);
+    cpu.getMemory().write16(0x0022, 0xBBBB);
+    cpu.getMemory().write8(0x9000, 0x55);
+    cpu.getMemory().write8(0xFA00, 0xCC);
+    cpu.getMemory().write8(0xFA01, 0xDD);
+
+    cpu.dumpRegisters();
+    assert(strcmp(cpu.getOutput(), "") != 0);
+
+    cpu.setInput("12345\n");
+    assert(strcmp(cpu.getInput(), "12345\n") == 0);
+
+    cpu.seedRng(0x1234);
+    assert(cpu.getRngState() == 0x1234);
+
+    cpu.setKeyboardKey(CPU::ZX16_KEY_LEFT);
+    assert(cpu.getKeyboardKey() == CPU::ZX16_KEY_LEFT);
+
+    cpu.requestTone(440, 250);
+    assert(cpu.hasPendingTone() == true);
+
+    cpu.requestStopAudio();
+    assert(cpu.hasPendingStopAudio() == true);
+
+    cpu.setVolumePercent(25);
+    assert(cpu.getVolumePercent() == 25);
+
+    cpu.setBreakpoint(0x0020);
+    assert(cpu.getBreakpointCount() == 1);
+
+    gui.setCursorAddress(0x0040);
+    assert(gui.hasCursorAddress() == true);
+
+    cpu.getMemory().write16(0x6000, makeSys(0x3FF));
+    cpu.setPC(0x6000);
+    cpu.step();
+    assert(cpu.isHalted() == true);
+
+    resetWholeSimulator(gui, cpu, running, runDelay);
+
+    assert(running == false);
+    assert(runDelay == 0);
+
+    assert(cpu.isHalted() == false);
+    assert(cpu.getPC() == 0x0020);
+    assert(cpu.getSP() == 0xEFFE);
+
+    for (int i = 0; i < 8; i++) {
+        if (i == 2) {
+            assert(cpu.getRegisters().getRegister(i) == 0xEFFE);
+        }
+        else {
+            assert(cpu.getRegisters().getRegister(i) == 0x0000);
+        }
+    }
+
+    assert(cpu.getMemory().read16(0x0020) == expectedFirstWord);
+    assert(cpu.getMemory().read16(0x0022) == expectedSecondWord);
+
+    assert(cpu.getMemory().read8(0x9000) == 0x00);
+    assert(cpu.getMemory().read8(0xFA00) == expectedPalette0);
+    assert(cpu.getMemory().read8(0xFA01) == expectedPalette1);
+
+    assert(strcmp(cpu.getOutput(), "") == 0);
+    assert(strcmp(cpu.getInput(), "") == 0);
+
+    assert(cpu.getRngState() == CPU::DEFAULT_RNG_SEED);
+    assert(cpu.getKeyboardKey() == CPU::ZX16_KEY_NONE);
+
+    assert(cpu.hasPendingTone() == false);
+    assert(cpu.hasPendingStopAudio() == false);
+    assert(cpu.getVolumePercent() == CPU::DEFAULT_VOLUME_PERCENT);
+
+    assert(cpu.getBreakpointCount() == 0);
+    assert(cpu.hasBreakpointHit() == false);
+
+    assert(gui.hasCursorAddress() == false);
+
+    printf("[PASS] Entire simulator reset test passed\n");
+}
+
 void testGuiStepExecutesOneInstruction() {
     CPU cpu;
+    Gui gui;
 
     bool running = false;
     int runDelay = 0;
@@ -2806,13 +2914,13 @@ void testGuiStepExecutesOneInstruction() {
     assert(cpu.getRegisters().getRegister(6) == 0x0000);
     assert(cpu.getRegisters().getRegister(7) == 0x0000);
 
-    handleGuiAction(cpu, GUI_ACTION_STEP, running, runDelay);
+    handleGuiAction(gui, cpu, GUI_ACTION_STEP, running, runDelay);
 
     assert(cpu.getPC() == 0x0022);
     assert(cpu.getRegisters().getRegister(6) == 5);
     assert(cpu.getRegisters().getRegister(7) == 0x0000);
 
-    handleGuiAction(cpu, GUI_ACTION_STEP, running, runDelay);
+    handleGuiAction(gui, cpu, GUI_ACTION_STEP, running, runDelay);
 
     assert(cpu.getPC() == 0x0024);
     assert(cpu.getRegisters().getRegister(6) == 5);
@@ -3336,6 +3444,7 @@ int main() {
     testEcallHaltExecution();
 
     testGuiStepExecutesOneInstruction();
+    testEntireSimulatorReset();
     testGuiRegisterEditingModifiesRegisters();
     testGuiMemoryEditingModifiesRam();
     testMemoryViewerMatchesRam();
@@ -3346,7 +3455,7 @@ int main() {
     testStepOverSkipsFunctionBody();
 
     
-
+    
     CPU guiCpu;
     loadGuiDemoProgram(guiCpu);
 
@@ -3368,7 +3477,7 @@ int main() {
             guiCpu
         );
 
-        handleGuiAction(guiCpu, action, running, runDelay);
+        handleGuiAction(gui, guiCpu, action, running, runDelay);
 
         if (running && !guiCpu.isHalted()) {
             runDelay++;

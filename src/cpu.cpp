@@ -17,6 +17,8 @@ void CPU::reset() {
     lastHandler = -1;
 
     clearOutput();
+    clearInput();
+    
     resetRng();
     clearKeyboardKey();
 
