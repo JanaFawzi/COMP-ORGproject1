@@ -138,6 +138,109 @@ bool CPU::stepWithBreakpoints() {
     return true;
 }
 
+bool CPU::isCallInstructionWord(unsigned short word) {
+    InstructionDecoder localDecoder;
+    DecodedInstruction instruction = localDecoder.decode(word);
+
+    if (instruction.opcode == 5 && instruction.linkFlag == 1) {
+        return true;
+    }
+
+    if (instruction.opcode == 0 && instruction.funct4 == 0xC) {
+        return true;
+    }
+
+    return false;
+}
+
+bool CPU::stepOver() {
+    if (halted) {
+        return false;
+    }
+
+    unsigned short word = memory.read16(pc);
+
+    if (!isCallInstructionWord(word)) {
+        clearBreakpointHit();
+        step();
+        return true;
+    }
+
+    unsigned short returnAddress = pc + 2;
+
+    clearBreakpointHit();
+
+    step();
+
+    int executedCount = 0;
+
+    while (!halted && pc != returnAddress && executedCount < STEP_OVER_MAX_INSTRUCTIONS) {
+        if (hasBreakpointAtPC()) {
+            breakpointHit = true;
+            breakpointHitAddress = pc;
+            return false;
+        }
+
+        step();
+
+        executedCount++;
+    }
+
+    if (pc == returnAddress) {
+        return true;
+    }
+
+    if (halted) {
+        return true;
+    }
+
+    return false;
+}
+
+bool CPU::isValidRunToCursorAddress(unsigned short address) {
+    if ((address & 1) != 0) {
+        return false;
+    }
+
+    return true;
+}
+
+bool CPU::runToCursor(unsigned short cursorAddress) {
+    if (halted) {
+        return false;
+    }
+
+    if (!isValidRunToCursorAddress(cursorAddress)) {
+        return false;
+    }
+
+    clearBreakpointHit();
+
+    if (pc == cursorAddress) {
+        return true;
+    }
+
+    int executedCount = 0;
+
+    while (!halted && pc != cursorAddress && executedCount < RUN_TO_CURSOR_MAX_INSTRUCTIONS) {
+        if (hasBreakpointAtPC()) {
+            breakpointHit = true;
+            breakpointHitAddress = pc;
+            return false;
+        }
+
+        step();
+
+        executedCount++;
+    }
+
+    if (pc == cursorAddress) {
+        return true;
+    }
+
+    return false;
+}
+
 unsigned short CPU::getLastInstruction() {
     return lastInstruction;
 }

@@ -7,7 +7,9 @@ enum GuiAction {
     GUI_ACTION_NONE = 0,
     GUI_ACTION_RUN_PAUSE = 1,
     GUI_ACTION_STEP = 2,
-    GUI_ACTION_RESET = 3
+    GUI_ACTION_STEP_OVER = 3,
+    GUI_ACTION_RUN_TO_CURSOR = 4,
+    GUI_ACTION_RESET = 5
 };
 
 class Gui {
@@ -26,9 +28,27 @@ public:
     static unsigned short getMemoryViewerBaseAddress(unsigned short pc);
     static bool isCurrentInstructionByte(unsigned short address, unsigned short pc);
 
+    static bool isValidRegisterEditIndex(int registerIndex);
+    static bool isHexDigit(char c);
+    static int hexDigitValue(char c);
+    static char normalizeHexDigit(char c);
+    static bool parseHex16(const char text[], unsigned short& value);
+
     static void disassembleInstruction(unsigned short word, char text[], int textSize);
     static void buildCurrentInstructionText(CPU& cpu, char text[], int textSize);
     
+    bool hasCursorAddress();
+    unsigned short getCursorAddress();
+    bool setCursorAddress(unsigned short address);
+    void clearCursorAddress();
+
+    static unsigned short getMemoryCursorAddressFromClick(
+        int mouseX,
+        int mouseY,
+        unsigned short pc,
+        bool& valid
+    );
+
     void open();
 
     bool shouldClose();
@@ -43,6 +63,13 @@ public:
 
     void formatMemoryLine(CPU& cpu, unsigned short address, char text[]);
 
+    bool editRegister(CPU& cpu, int registerIndex, unsigned short value);
+    bool hasSelectedRegister();
+    int getSelectedRegisterIndex();
+    void clearSelectedRegister();
+
+
+
     void close();
 
 
@@ -54,11 +81,27 @@ private:
     static const int CONSOLE_VISIBLE_LINES = 5;
 
     void updateKeyboardFromRaylib(CPU& cpu);
-    void drawMemoryLineWithHighlight(CPU& cpu, unsigned short address, unsigned short pc, int x, int y);
-
+    
     void updateAudioFromCpu(CPU& cpu);
     bool playTone(unsigned short frequency, unsigned short durationMs);
     bool stopAudio();
+
+    unsigned short cursorAddress;
+    bool cursorAddressSelected;
+    void updateMemoryCursorFromMouse(unsigned short pc);
+
+    int selectedRegisterIndex;
+    bool registerEditActive;
+    char registerEditText[5];
+    int registerEditLength;
+
+    void startRegisterEdit(int registerIndex, unsigned short currentValue);
+    void updateRegisterEditorFromMouse(bool running, CPU& cpu);
+    void updateRegisterEditorFromKeyboard(bool running, CPU& cpu);
+    bool appendRegisterEditDigit(char c);
+    bool removeRegisterEditDigit();
+    bool applyRegisterEdit(CPU& cpu);
+    static int getRegisterIndexFromClick(int mouseX, int mouseY);
 
     void drawStatusPanel(
         const char testStatus[],
@@ -68,18 +111,24 @@ private:
     );
 
     void drawConsolePanel(const char consoleText[]);
+    void drawConsoleTextLines(const char visibleText[], int x, int y);
 
     GuiAction drawControlPanel(bool running, bool halted);
 
-    void drawRegisterPanel(CPU& cpu);
+    void drawRegisterPanel(CPU& cpu, bool running);
 
     void drawMemoryPanel(CPU& cpu);
+    void drawMemoryLineWithHighlight(
+        CPU& cpu,
+        unsigned short address,
+        unsigned short pc,
+        int x,
+        int y
+    );
 
     void drawGraphicsPanel(CPU& cpu);
 
     bool drawButton(int x, int y, int w, int h, const char text[]);
-
-    void drawConsoleTextLines(const char visibleText[], int x, int y);
 
     void drawDisassemblyPanel(CPU& cpu);
 };

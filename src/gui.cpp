@@ -1,6 +1,7 @@
 #include "gui.h"
 #include "cpu.h"
 #include "graphics_memory.h"
+#include "instruction_decoder.h"
 #include "raylib.h"
 
 #include <stdio.h>
@@ -14,6 +15,14 @@ static unsigned int guiLastToneRequestId = 0;
 Gui::Gui() {
     width = 1180;
     height = 650;
+
+    cursorAddress = 0;
+    cursorAddressSelected = false;
+
+    selectedRegisterIndex = -1;
+    registerEditActive = false;
+    registerEditText[0] = '\0';
+    registerEditLength = 0;
 }
 
 int Gui::getTargetFps() {
@@ -102,18 +111,20 @@ void Gui::buildConsoleVisibleText(const char consoleText[], char visibleText[], 
     }
 
     int start = end;
-    int linesFound = 0;
+    int newlineCount = 0;
 
-    while (start > 0 && linesFound < CONSOLE_VISIBLE_LINES) {
+    
+    while (start > 0) {
         start--;
 
         if (consoleText[start] == '\n') {
-            linesFound++;
-        }
-    }
+            newlineCount++;
 
-    if (consoleText[start] == '\n') {
-        start++;
+            if (newlineCount == CONSOLE_VISIBLE_LINES) {
+                start++;
+                break;
+            }
+        }
     }
 
     int outIndex = 0;
@@ -161,7 +172,7 @@ GuiAction Gui::draw(
     drawConsolePanel(consoleText);
     action = drawControlPanel(running, cpu.isHalted());
     drawDisassemblyPanel(cpu);
-    drawRegisterPanel(cpu);
+    drawRegisterPanel(cpu, running);
     drawMemoryPanel(cpu);
     drawGraphicsPanel(cpu);
 
@@ -175,14 +186,186 @@ void Gui::drawDisassemblyPanel(CPU& cpu) {
 
     buildCurrentInstructionText(cpu, instructionText, 128);
 
-    DrawRectangleLines(315, 350, 270, 75, GREEN);
+    DrawRectangleLines(315, 355, 270, 70, GREEN);
 
-    DrawText("Disassembly", 335, 365, 18, GREEN);
+    DrawText("Disassembly", 335, 370, 18, GREEN);
 
-    DrawRectangle(335, 395, 230, 22, DARKGRAY);
-    DrawRectangleLines(335, 395, 230, 22, GRAY);
+    DrawRectangle(335, 397, 230, 22, DARKGRAY);
+    DrawRectangleLines(335, 397, 230, 22, GRAY);
 
     DrawText(instructionText, 342, 401, 10, YELLOW);
+}
+
+bool Gui::editRegister(CPU& cpu, int registerIndex, unsigned short value) {
+    if (!isValidRegisterEditIndex(registerIndex)) {
+        return false;
+    }
+
+    cpu.getRegisters().setRegister(registerIndex, value);
+
+    return true;
+}
+
+bool Gui::hasSelectedRegister() {
+    return registerEditActive && isValidRegisterEditIndex(selectedRegisterIndex);
+}
+
+int Gui::getSelectedRegisterIndex() {
+    if (!hasSelectedRegister()) {
+        return -1;
+    }
+
+    return selectedRegisterIndex;
+}
+
+void Gui::clearSelectedRegister() {
+    selectedRegisterIndex = -1;
+    registerEditActive = false;
+    registerEditLength = 0;
+    registerEditText[0] = '\0';
+}
+
+void Gui::startRegisterEdit(int registerIndex, unsigned short currentValue) {
+    if (!isValidRegisterEditIndex(registerIndex)) {
+        clearSelectedRegister();
+        return;
+    }
+
+    selectedRegisterIndex = registerIndex;
+    registerEditActive = true;
+    registerEditLength = 0;
+    registerEditText[0] = '\0';
+
+    (void)currentValue;
+}
+
+int Gui::getRegisterIndexFromClick(int mouseX, int mouseY) {
+    int registerX = 625;
+    int registerW = 210;
+    int firstRegisterY = 176;
+    int rowHeight = 24;
+    int selectableHeight = 20;
+
+    if (mouseX < registerX || mouseX >= registerX + registerW) {
+        return -1;
+    }
+
+    if (mouseY < firstRegisterY) {
+        return -1;
+    }
+
+    int row = (mouseY - firstRegisterY) / rowHeight;
+    int insideRowY = (mouseY - firstRegisterY) % rowHeight;
+
+    if (row < 0 || row >= RegisterFile::REGISTER_COUNT) {
+        return -1;
+    }
+
+    if (insideRowY >= selectableHeight) {
+        return -1;
+    }
+
+    return row;
+}
+
+void Gui::updateRegisterEditorFromMouse(bool running, CPU& cpu) {
+    if (running) {
+        return;
+    }
+
+    if (!IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        return;
+    }
+
+    int registerIndex = getRegisterIndexFromClick(GetMouseX(), GetMouseY());
+
+    if (isValidRegisterEditIndex(registerIndex)) {
+        startRegisterEdit(registerIndex, cpu.getRegisters().getRegister(registerIndex));
+    }
+}
+
+bool Gui::appendRegisterEditDigit(char c) {
+    if (!isHexDigit(c)) {
+        return false;
+    }
+
+    if (registerEditLength >= 4) {
+        return false;
+    }
+
+    registerEditText[registerEditLength] = normalizeHexDigit(c);
+    registerEditLength++;
+    registerEditText[registerEditLength] = '\0';
+
+    return true;
+}
+
+bool Gui::removeRegisterEditDigit() {
+    if (registerEditLength <= 0) {
+        return false;
+    }
+
+    registerEditLength--;
+    registerEditText[registerEditLength] = '\0';
+
+    return true;
+}
+
+bool Gui::applyRegisterEdit(CPU& cpu) {
+    if (!hasSelectedRegister()) {
+        return false;
+    }
+
+    if (registerEditLength <= 0) {
+        clearSelectedRegister();
+        return false;
+    }
+
+    unsigned short value = 0;
+
+    if (!parseHex16(registerEditText, value)) {
+        return false;
+    }
+
+    if (!editRegister(cpu, selectedRegisterIndex, value)) {
+        return false;
+    }
+
+    clearSelectedRegister();
+
+    return true;
+}
+
+void Gui::updateRegisterEditorFromKeyboard(bool running, CPU& cpu) {
+    if (running) {
+        return;
+    }
+
+    if (!hasSelectedRegister()) {
+        return;
+    }
+
+    int key = GetCharPressed();
+
+    while (key > 0) {
+        if (key >= 0 && key <= 255) {
+            appendRegisterEditDigit((char)key);
+        }
+
+        key = GetCharPressed();
+    }
+
+    if (IsKeyPressed(KEY_BACKSPACE)) {
+        removeRegisterEditDigit();
+    }
+
+    if (IsKeyPressed(KEY_ENTER)) {
+        applyRegisterEdit(cpu);
+    }
+
+    if (IsKeyPressed(KEY_ESCAPE)) {
+        clearSelectedRegister();
+    }
 }
 
 void Gui::updateKeyboardFromRaylib(CPU& cpu) {
@@ -283,6 +466,90 @@ static const char* getSyscallDisplayName(unsigned short service) {
     }
 
     return "unknown_sys";
+}
+
+bool Gui::isValidRegisterEditIndex(int registerIndex) {
+    if (registerIndex < 0 || registerIndex >= RegisterFile::REGISTER_COUNT) {
+        return false;
+    }
+
+    return true;
+}
+
+bool Gui::isHexDigit(char c) {
+    if (c >= '0' && c <= '9') {
+        return true;
+    }
+
+    if (c >= 'a' && c <= 'f') {
+        return true;
+    }
+
+    if (c >= 'A' && c <= 'F') {
+        return true;
+    }
+
+    return false;
+}
+
+int Gui::hexDigitValue(char c) {
+    if (c >= '0' && c <= '9') {
+        return c - '0';
+    }
+
+    if (c >= 'a' && c <= 'f') {
+        return c - 'a' + 10;
+    }
+
+    if (c >= 'A' && c <= 'F') {
+        return c - 'A' + 10;
+    }
+
+    return -1;
+}
+
+char Gui::normalizeHexDigit(char c) {
+    if (c >= 'a' && c <= 'f') {
+        return (char)(c - 'a' + 'A');
+    }
+
+    return c;
+}
+
+bool Gui::parseHex16(const char text[], unsigned short& value) {
+    if (text == 0) {
+        return false;
+    }
+
+    int index = 0;
+    int digitCount = 0;
+    unsigned int parsedValue = 0;
+
+    if (text[0] == '0' && (text[1] == 'x' || text[1] == 'X')) {
+        index = 2;
+    }
+
+    while (text[index] != '\0') {
+        if (!isHexDigit(text[index])) {
+            return false;
+        }
+
+        if (digitCount >= 4) {
+            return false;
+        }
+
+        parsedValue = (parsedValue << 4) | hexDigitValue(text[index]);
+        digitCount++;
+        index++;
+    }
+
+    if (digitCount == 0) {
+        return false;
+    }
+
+    value = (unsigned short)(parsedValue & 0xFFFF);
+
+    return true;
 }
 
 void Gui::disassembleInstruction(unsigned short word, char text[], int textSize) {
@@ -730,39 +997,50 @@ void Gui::drawConsoleTextLines(const char visibleText[], int x, int y) {
 GuiAction Gui::drawControlPanel(bool running, bool halted) {
     GuiAction action = GUI_ACTION_NONE;
 
-    DrawRectangleLines(315, 245, 270, 110, GREEN);
+    DrawRectangleLines(315, 240, 270, 100, GREEN);
 
-    DrawText("Controls", 335, 265, 18, GREEN);
+    DrawText("Controls", 335, 255, 18, GREEN);
 
     if (halted) {
-        if (drawButton(335, 310, 70, 30, "Run")) {
+        if (drawButton(320, 295, 48, 30, "Run")) {
             action = GUI_ACTION_RUN_PAUSE;
         }
     }
     else if (running) {
-        if (drawButton(335, 310, 70, 30, "Pause")) {
+        if (drawButton(320, 295, 48, 30, "Pause")) {
             action = GUI_ACTION_RUN_PAUSE;
         }
     }
     else {
-        if (drawButton(335, 310, 70, 30, "Run")) {
+        if (drawButton(320, 295, 48, 30, "Run")) {
             action = GUI_ACTION_RUN_PAUSE;
         }
     }
 
-    if (drawButton(425, 310, 70, 30, "Step")) {
+    if (drawButton(372, 295, 48, 30, "Step")) {
         action = GUI_ACTION_STEP;
     }
 
-    if (drawButton(515, 310, 70, 30, "Reset")) {
+    if (drawButton(424, 295, 48, 30, "Over")) {
+        action = GUI_ACTION_STEP_OVER;
+    }
+
+    if (drawButton(476, 295, 54, 30, "Cursor")) {
+        action = GUI_ACTION_RUN_TO_CURSOR;
+    }
+
+    if (drawButton(534, 295, 48, 30, "Reset")) {
         action = GUI_ACTION_RESET;
     }
 
     return action;
 }
 
-void Gui::drawRegisterPanel(CPU& cpu) {
-    char text[40];
+void Gui::drawRegisterPanel(CPU& cpu, bool running) {
+    char text[80];
+
+    updateRegisterEditorFromMouse(running, cpu);
+    updateRegisterEditorFromKeyboard(running, cpu);
 
     DrawRectangleLines(615, 60, 240, 540, GREEN);
 
@@ -773,8 +1051,15 @@ void Gui::drawRegisterPanel(CPU& cpu) {
 
     sprintf(text, "SP/x2  : 0x%04X", cpu.getSP());
     DrawText(text, 635, 140, 14, GREEN);
+    for (int i = 0; i < RegisterFile::REGISTER_COUNT; i++) {
+        int rowY = 180 + i * 24;
+        Color textColor = GREEN;
 
-    for (int i = 0; i < 8; i++) {
+        if (hasSelectedRegister() && selectedRegisterIndex == i) {
+            DrawRectangle(630, rowY - 4, 190, 20, DARKBLUE);
+            textColor = SKYBLUE;
+        }
+
         if (i == 2) {
             sprintf(text, "x%d/sp : 0x%04X", i, cpu.getRegisters().getRegister(i));
         }
@@ -782,9 +1067,37 @@ void Gui::drawRegisterPanel(CPU& cpu) {
             sprintf(text, "x%d    : 0x%04X", i, cpu.getRegisters().getRegister(i));
         }
 
-        DrawText(text, 635, 180 + i * 24, 14, GREEN);
+        DrawText(text, 635, rowY, 14, textColor);
+    }
+
+    DrawText("Register edit", 635, 390, 14, GREEN);
+
+    if (running) {
+        DrawText("Pause CPU to edit", 635, 412, 12, GRAY);
+    }
+    else {
+        DrawText("Click x0-x7, type HEX", 635, 412, 12, GRAY);
+        DrawText("Enter=save Esc=cancel", 635, 430, 12, GRAY);
+    }
+
+    DrawRectangle(635, 455, 175, 28, DARKGRAY);
+    DrawRectangleLines(635, 455, 175, 28, GRAY);
+
+    if (hasSelectedRegister()) {
+        if (registerEditLength > 0) {
+            sprintf(text, "x%d = 0x%s", selectedRegisterIndex, registerEditText);
+        }
+        else {
+            sprintf(text, "x%d = 0x____", selectedRegisterIndex);
+        }
+
+        DrawText(text, 645, 463, 14, SKYBLUE);
+    }
+    else {
+        DrawText("no register selected", 645, 463, 12, GRAY);
     }
 }
+
 
 void Gui::formatMemoryLine(CPU& cpu, unsigned short address, char text[]) {
     sprintf(
@@ -805,12 +1118,13 @@ void Gui::formatMemoryLine(CPU& cpu, unsigned short address, char text[]) {
 void Gui::drawMemoryPanel(CPU& cpu) {
     unsigned short baseAddress = getMemoryViewerBaseAddress(cpu.getPC());
 
-    DrawRectangleLines(885, 60, 270, 540, GREEN);
+    DrawRectangleLines(875, 60, 285, 540, GREEN);
 
-    DrawText("Memory Viewer", 905, 80, 18, GREEN);
+    DrawText("Memory Viewer", 895, 80, 18, GREEN);
 
-    DrawText("RAM around PC", 905, 115, 14, RAYWHITE);
-    DrawText("Yellow = current instruction", 905, 132, 11, YELLOW);
+    DrawText("RAM around PC", 895, 115, 14, RAYWHITE);
+    DrawText("Yellow = current instruction", 895, 132, 11, YELLOW);
+    DrawText("Blue = run cursor", 895, 145, 11, SKYBLUE);
 
     for (int row = 0; row < 8; row++) {
         unsigned short rowAddress = baseAddress + row * 8;
@@ -819,8 +1133,8 @@ void Gui::drawMemoryPanel(CPU& cpu) {
             cpu,
             rowAddress,
             cpu.getPC(),
-            905,
-            155 + row * 28
+            895,
+            165 + row * 28
         );
     }
 }
@@ -832,7 +1146,7 @@ void Gui::drawMemoryLineWithHighlight(CPU& cpu, unsigned short address, unsigned
     sprintf(prefix, "0x%04X:", address);
     DrawText(prefix, x, y, 13, GREEN);
 
-    int byteX = x + 72;
+    int byteX = x + 68;
 
     for (int col = 0; col < 8; col++) {
         unsigned short byteAddress = address + col;
@@ -841,14 +1155,18 @@ void Gui::drawMemoryLineWithHighlight(CPU& cpu, unsigned short address, unsigned
         sprintf(byteText, "%02X", value);
 
         if (isCurrentInstructionByte(byteAddress, pc)) {
-            DrawRectangle(byteX - 3, y - 2, 20, 17, DARKGREEN);
+            DrawRectangle(byteX - 3, y - 2, 19, 17, DARKGREEN);
             DrawText(byteText, byteX, y, 13, YELLOW);
+        }
+        else if (cursorAddressSelected && isCurrentInstructionByte(byteAddress, cursorAddress)) {
+            DrawRectangle(byteX - 3, y - 2, 19, 17, DARKBLUE);
+            DrawText(byteText, byteX, y, 13, SKYBLUE);
         }
         else {
             DrawText(byteText, byteX, y, 13, GREEN);
         }
 
-        byteX = byteX + 24;
+        byteX = byteX + 22;
     }
 }
 
@@ -939,6 +1257,105 @@ bool Gui::drawButton(int x, int y, int w, int h, const char text[]) {
 
 unsigned short Gui::getMemoryViewerBaseAddress(unsigned short pc) {
     return pc & 0xFFF0;
+}
+
+bool Gui::hasCursorAddress() {
+    return cursorAddressSelected;
+}
+
+unsigned short Gui::getCursorAddress() {
+    return cursorAddress;
+}
+
+bool Gui::setCursorAddress(unsigned short address) {
+    if ((address & 1) != 0) {
+        return false;
+    }
+
+    cursorAddress = address;
+    cursorAddressSelected = true;
+
+    return true;
+}
+
+void Gui::clearCursorAddress() {
+    cursorAddress = 0;
+    cursorAddressSelected = false;
+}
+
+unsigned short Gui::getMemoryCursorAddressFromClick(
+    int mouseX,
+    int mouseY,
+    unsigned short pc,
+    bool& valid
+) {
+    valid = false;
+
+    int memoryX = 895;
+    int memoryY = 155;
+    int rowHeight = 28;
+    int rowCount = 8;
+
+    int byteStartX = memoryX + 68;
+    int byteWidth = 22;
+    int byteCount = 8;
+
+    if (mouseY < memoryY) {
+        return 0;
+    }
+
+    if (mouseY >= memoryY + rowCount * rowHeight) {
+        return 0;
+    }
+
+    int row = (mouseY - memoryY) / rowHeight;
+
+    if (mouseX < memoryX) {
+        return 0;
+    }
+
+    if (mouseX >= byteStartX + byteCount * byteWidth) {
+        return 0;
+    }
+
+    unsigned short baseAddress = getMemoryViewerBaseAddress(pc);
+    unsigned short rowAddress = baseAddress + row * 8;
+
+    if (mouseX < byteStartX) {
+        valid = true;
+        return rowAddress;
+    }
+
+    int byteColumn = (mouseX - byteStartX) / byteWidth;
+
+    if (byteColumn < 0 || byteColumn >= byteCount) {
+        return 0;
+    }
+
+    int instructionByteColumn = byteColumn & 0xFE;
+
+    valid = true;
+
+    return rowAddress + instructionByteColumn;
+}
+
+void Gui::updateMemoryCursorFromMouse(unsigned short pc) {
+    if (!IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        return;
+    }
+
+    bool valid = false;
+
+    unsigned short selectedAddress = getMemoryCursorAddressFromClick(
+        GetMouseX(),
+        GetMouseY(),
+        pc,
+        valid
+    );
+
+    if (valid) {
+        setCursorAddress(selectedAddress);
+    }
 }
 
 bool Gui::isCurrentInstructionByte(unsigned short address, unsigned short pc) {

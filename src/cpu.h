@@ -27,6 +27,9 @@ public:
     static constexpr unsigned short MAX_VOLUME_PERCENT = 100;
 
     static constexpr unsigned short MAX_MEMORY_DUMP_BYTES = 64;
+    static constexpr int STEP_OVER_MAX_INSTRUCTIONS = 1000;
+
+    static constexpr int RUN_TO_CURSOR_MAX_INSTRUCTIONS = 10000;
     CPU();
 
     void reset();
@@ -55,6 +58,12 @@ public:
     void clearBreakpointHit();
 
     bool stepWithBreakpoints();
+
+    static bool isCallInstructionWord(unsigned short word);
+    bool stepOver();
+
+    static bool isValidRunToCursorAddress(unsigned short address);
+    bool runToCursor(unsigned short cursorAddress);
 
     unsigned short getLastInstruction();
     int getLastHandler();
@@ -111,10 +120,14 @@ private:
     Memory memory;
     RegisterFile registers;
     InstructionDecoder decoder;
+    BreakpointManager breakpointManager;
 
     unsigned short pc;
     unsigned short lastInstruction;
     int lastHandler;
+
+    bool breakpointHit;
+    unsigned short breakpointHitAddress;
 
     static const int OUTPUT_SIZE = 1024;
     char output[OUTPUT_SIZE];
@@ -139,10 +152,6 @@ private:
     unsigned short volumePercent;
 
     bool halted;
-
-    BreakpointManager breakpointManager;
-    bool breakpointHit;
-    unsigned short breakpointHitAddress;
 
     void dispatch(DecodedInstruction instruction);
 

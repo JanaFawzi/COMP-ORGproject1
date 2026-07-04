@@ -2193,6 +2193,60 @@ void testInstructionFields() {
     printf("[PASS] Instruction fields test passed\n");
 }
 
+void testStepOverSkipsFunctionBody() {
+    CPU cpu;
+
+    unsigned short randomWord = makeSys(0x021);
+
+    // funct4=0xC (JALR), rs2=3 (jump target reg), rd=1 (return-addr reg), func3=0, opcode=0
+    unsigned short jalrWord = (unsigned short)((0xC << 12) | (3 << 9) | (1 << 6));
+
+    // funct4=0xB (JR), rd=1 (register holding the address to jump to), opcode=0
+    unsigned short jrWord = (unsigned short)((0xB << 12) | (1 << 6));
+
+    assert(CPU::isCallInstructionWord(jalrWord) == true);
+    assert(CPU::isCallInstructionWord(jrWord) == false);
+    assert(CPU::isCallInstructionWord(randomWord) == false);
+
+    cpu.setPC(0x7000);
+    cpu.seedRng(0x1234);
+
+    cpu.getRegisters().setRegister(3, 0x7100);
+
+    cpu.getMemory().write16(0x7000, jalrWord);
+    cpu.getMemory().write16(0x7002, randomWord);
+
+    cpu.getMemory().write16(0x7100, randomWord);
+    cpu.getMemory().write16(0x7102, randomWord);
+    cpu.getMemory().write16(0x7104, jrWord);
+
+    bool executed = cpu.stepOver();
+
+    assert(executed == true);
+    assert(cpu.getPC() == 0x7002);
+    assert(cpu.getRegisters().getRegister(1) == 0x7002);
+    assert(cpu.getRegisters().getRegister(6) == 0x0020);
+    assert(cpu.hasBreakpointHit() == false);
+
+    cpu.step();
+
+    assert(cpu.getPC() == 0x7004);
+    assert(cpu.getRegisters().getRegister(6) == 0x3828);
+
+    cpu.setPC(0x7200);
+    cpu.getMemory().write16(0x7200, randomWord);
+    cpu.seedRng(0x1234);
+    cpu.getRegisters().setRegister(6, 0);
+
+    executed = cpu.stepOver();
+
+    assert(executed == true);
+    assert(cpu.getPC() == 0x7202);
+    assert(cpu.getRegisters().getRegister(6) == 0x3830);
+
+    printf("[PASS] Step over skips function body test passed\n");
+}
+
 void testExecutionDispatcher() {
     CPU cpu;
 
@@ -2767,6 +2821,57 @@ void testGuiStepExecutesOneInstruction() {
     printf("[PASS] GUI step executes one instruction test passed\n");
 }
 
+void testGuiRegisterEditingModifiesRegisters() {
+    Gui gui;
+    CPU cpu;
+
+    unsigned short value = 0;
+
+    cpu.reset();
+
+    assert(Gui::isValidRegisterEditIndex(0) == true);
+    assert(Gui::isValidRegisterEditIndex(7) == true);
+    assert(Gui::isValidRegisterEditIndex(-1) == false);
+    assert(Gui::isValidRegisterEditIndex(8) == false);
+
+    assert(Gui::parseHex16("0000", value) == true);
+    assert(value == 0x0000);
+
+    assert(Gui::parseHex16("1234", value) == true);
+    assert(value == 0x1234);
+
+    assert(Gui::parseHex16("0xABCD", value) == true);
+    assert(value == 0xABCD);
+
+    assert(Gui::parseHex16("beef", value) == true);
+    assert(value == 0xBEEF);
+
+    assert(Gui::parseHex16("", value) == false);
+    assert(Gui::parseHex16("10000", value) == false);
+    assert(Gui::parseHex16("12G4", value) == false);
+
+    assert(gui.hasSelectedRegister() == false);
+    assert(gui.getSelectedRegisterIndex() == -1);
+
+    assert(gui.editRegister(cpu, 0, 0x1111) == true);
+    assert(cpu.getRegisters().getRegister(0) == 0x1111);
+
+    assert(gui.editRegister(cpu, 1, 0x2222) == true);
+    assert(cpu.getRegisters().getRegister(1) == 0x2222);
+
+    assert(gui.editRegister(cpu, 2, 0xD000) == true);
+    assert(cpu.getRegisters().getRegister(2) == 0xD000);
+    assert(cpu.getSP() == 0xD000);
+
+    assert(gui.editRegister(cpu, 7, 0x7777) == true);
+    assert(cpu.getRegisters().getRegister(7) == 0x7777);
+
+    assert(gui.editRegister(cpu, -1, 0x9999) == false);
+    assert(gui.editRegister(cpu, 8, 0x9999) == false);
+
+    printf("[PASS] GUI register editing modifies registers test passed\n");
+}
+
 void testMemoryViewerMatchesRam() {
     CPU cpu;
     Gui gui;
@@ -3171,11 +3276,13 @@ int main() {
     testEcallHaltExecution();
 
     testGuiStepExecutesOneInstruction();
+    testGuiRegisterEditingModifiesRegisters();
     testMemoryViewerMatchesRam();
     testFinalBinPrograms();
 
     testCurrentPcHighlightMovesCorrectly();
     testCurrentInstructionDisplayed();
+    testStepOverSkipsFunctionBody();
 
     
 
