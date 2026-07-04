@@ -61,6 +61,11 @@ public:
     static bool isCallInstructionWord(unsigned short word);
     bool stepOver();
 
+    static constexpr int RUN_TO_CURSOR_MAX_INSTRUCTIONS = 10000;
+
+    static bool isValidRunToCursorAddress(unsigned short address);
+    bool runToCursor(unsigned short cursorAddress);
+
     unsigned short getLastInstruction();
     int getLastHandler();
 

@@ -2766,7 +2766,7 @@ void loadGuiDemoProgram(CPU& cpu) {
     cpu.getMemory().write16(0x0022, makeSys(0x3FF));
 }
 
-void handleGuiAction(CPU& cpu, GuiAction action, bool& running, int& runDelay) {
+void handleGuiAction(Gui& gui,CPU& cpu, GuiAction action, bool& running, int& runDelay) {
     if (action == GUI_ACTION_NONE) {
         return;
     }
@@ -2797,6 +2797,15 @@ void handleGuiAction(CPU& cpu, GuiAction action, bool& running, int& runDelay) {
         return;
     }
 
+    if (action == GUI_ACTION_RUN_TO_CURSOR) {
+        if (!running && !cpu.isHalted() && gui.hasCursorAddress()) {
+            cpu.runToCursor(gui.getCursorAddress());
+        }
+
+        runDelay = 0;
+        return;
+    }
+
     if (action == GUI_ACTION_RESET) {
         loadGuiDemoProgram(cpu);
         running = false;
@@ -2805,6 +2814,7 @@ void handleGuiAction(CPU& cpu, GuiAction action, bool& running, int& runDelay) {
 }
 
 void testGuiStepExecutesOneInstruction() {
+    Gui gui;
     CPU cpu;
 
     bool running = false;
@@ -2820,13 +2830,13 @@ void testGuiStepExecutesOneInstruction() {
     assert(cpu.getRegisters().getRegister(6) == 0x0000);
     assert(cpu.getRegisters().getRegister(7) == 0x0000);
 
-    handleGuiAction(cpu, GUI_ACTION_STEP, running, runDelay);
+    handleGuiAction(gui, cpu, GUI_ACTION_STEP, running, runDelay);
 
     assert(cpu.getPC() == 0x0022);
     assert(cpu.getRegisters().getRegister(6) == 5);
     assert(cpu.getRegisters().getRegister(7) == 0x0000);
 
-    handleGuiAction(cpu, GUI_ACTION_STEP, running, runDelay);
+    handleGuiAction(gui, cpu, GUI_ACTION_STEP, running, runDelay);
 
     assert(cpu.getPC() == 0x0024);
     assert(cpu.getRegisters().getRegister(6) == 5);
@@ -3222,7 +3232,7 @@ int main() {
             guiCpu
         );
 
-        handleGuiAction(guiCpu, action, running, runDelay);
+      handleGuiAction(gui, guiCpu, action, running, runDelay);
 
         if (running && !guiCpu.isHalted()) {
             runDelay++;

@@ -8,7 +8,8 @@ enum GuiAction {
     GUI_ACTION_RUN_PAUSE = 1,
     GUI_ACTION_STEP = 2,
     GUI_ACTION_STEP_OVER = 3,
-    GUI_ACTION_RESET = 4
+    GUI_ACTION_RUN_TO_CURSOR = 4,
+    GUI_ACTION_RESET = 5
 };
 
 class Gui {
@@ -29,6 +30,18 @@ public:
 
     static void disassembleInstruction(unsigned short word, char text[], int textSize);
     static void buildCurrentInstructionText(CPU& cpu, char text[], int textSize);
+
+    bool hasCursorAddress();
+    unsigned short getCursorAddress();
+    bool setCursorAddress(unsigned short address);
+    void clearCursorAddress();
+
+    static unsigned short getMemoryCursorAddressFromClick(
+        int mouseX,
+        int mouseY,
+        unsigned short pc,
+        bool& valid
+    );
 
     void open();
 
@@ -58,6 +71,10 @@ private:
     void updateAudioFromCpu(CPU& cpu);
     bool playTone(unsigned short frequency, unsigned short durationMs);
     bool stopAudio();
+
+    unsigned short cursorAddress;
+    bool cursorAddressSelected;
+    void updateMemoryCursorFromMouse(unsigned short pc);
 
     void drawStatusPanel(
         const char testStatus[],

@@ -197,6 +197,50 @@ bool CPU::stepOver() {
     return false;
 }
 
+bool CPU::isValidRunToCursorAddress(unsigned short address) {
+    if ((address & 1) != 0) {
+        return false;
+    }
+
+    return true;
+}
+
+bool CPU::runToCursor(unsigned short cursorAddress) {
+    if (halted) {
+        return false;
+    }
+
+    if (!isValidRunToCursorAddress(cursorAddress)) {
+        return false;
+    }
+
+    clearBreakpointHit();
+
+    if (pc == cursorAddress) {
+        return true;
+    }
+
+    int executedCount = 0;
+
+    while (!halted && pc != cursorAddress && executedCount < RUN_TO_CURSOR_MAX_INSTRUCTIONS) {
+        if (hasBreakpointAtPC()) {
+            breakpointHit = true;
+            breakpointHitAddress = pc;
+            return false;
+        }
+
+        step();
+
+        executedCount++;
+    }
+
+    if (pc == cursorAddress) {
+        return true;
+    }
+
+    return false;
+}
+
 unsigned short CPU::getLastInstruction() {
     return lastInstruction;
 }

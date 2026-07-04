@@ -74,6 +74,9 @@ static const char* getSyscallDisplayName(unsigned short service) {
 Gui::Gui() {
     width = 1180;
     height = 650;
+
+    cursorAddress = 0;
+    cursorAddressSelected = false;
 }
 
 int Gui::getTargetFps() {
@@ -189,6 +192,105 @@ void Gui::buildConsoleVisibleText(const char consoleText[], char visibleText[], 
 
 unsigned short Gui::getMemoryViewerBaseAddress(unsigned short pc) {
     return pc & 0xFFF0;
+}
+
+bool Gui::hasCursorAddress() {
+    return cursorAddressSelected;
+}
+
+unsigned short Gui::getCursorAddress() {
+    return cursorAddress;
+}
+
+bool Gui::setCursorAddress(unsigned short address) {
+    if ((address & 1) != 0) {
+        return false;
+    }
+
+    cursorAddress = address;
+    cursorAddressSelected = true;
+
+    return true;
+}
+
+void Gui::clearCursorAddress() {
+    cursorAddress = 0;
+    cursorAddressSelected = false;
+}
+
+unsigned short Gui::getMemoryCursorAddressFromClick(
+    int mouseX,
+    int mouseY,
+    unsigned short pc,
+    bool& valid
+) {
+    valid = false;
+
+    int memoryX = 895;
+    int memoryY = 155;
+    int rowHeight = 28;
+    int rowCount = 8;
+
+    int byteStartX = memoryX + 68;
+    int byteWidth = 22;
+    int byteCount = 8;
+
+    if (mouseY < memoryY) {
+        return 0;
+    }
+
+    if (mouseY >= memoryY + rowCount * rowHeight) {
+        return 0;
+    }
+
+    int row = (mouseY - memoryY) / rowHeight;
+
+    if (mouseX < memoryX) {
+        return 0;
+    }
+
+    if (mouseX >= byteStartX + byteCount * byteWidth) {
+        return 0;
+    }
+
+    unsigned short baseAddress = getMemoryViewerBaseAddress(pc);
+    unsigned short rowAddress = baseAddress + row * 8;
+
+    if (mouseX < byteStartX) {
+        valid = true;
+        return rowAddress;
+    }
+
+    int byteColumn = (mouseX - byteStartX) / byteWidth;
+
+    if (byteColumn < 0 || byteColumn >= byteCount) {
+        return 0;
+    }
+
+    int instructionByteColumn = byteColumn & 0xFE;
+
+    valid = true;
+
+    return rowAddress + instructionByteColumn;
+}
+
+void Gui::updateMemoryCursorFromMouse(unsigned short pc) {
+    if (!IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        return;
+    }
+
+    bool valid = false;
+
+    unsigned short selectedAddress = getMemoryCursorAddressFromClick(
+        GetMouseX(),
+        GetMouseY(),
+        pc,
+        valid
+    );
+
+    if (valid) {
+        setCursorAddress(selectedAddress);
+    }
 }
 
 bool Gui::isCurrentInstructionByte(unsigned short address, unsigned short pc) {
@@ -730,30 +832,34 @@ GuiAction Gui::drawControlPanel(bool running, bool halted) {
     DrawText("Controls", 335, 255, 18, GREEN);
 
     if (halted) {
-        if (drawButton(325, 295, 55, 30, "Run")) {
+        if (drawButton(320, 295, 48, 30, "Run")) {
             action = GUI_ACTION_RUN_PAUSE;
         }
     }
     else if (running) {
-        if (drawButton(325, 295, 55, 30, "Pause")) {
+        if (drawButton(320, 295, 48, 30, "Pause")) {
             action = GUI_ACTION_RUN_PAUSE;
         }
     }
     else {
-        if (drawButton(325, 295, 55, 30, "Run")) {
+        if (drawButton(320, 295, 48, 30, "Run")) {
             action = GUI_ACTION_RUN_PAUSE;
         }
     }
 
-    if (drawButton(390, 295, 55, 30, "Step")) {
+    if (drawButton(372, 295, 48, 30, "Step")) {
         action = GUI_ACTION_STEP;
     }
 
-    if (drawButton(455, 295, 55, 30, "Over")) {
+    if (drawButton(424, 295, 48, 30, "Over")) {
         action = GUI_ACTION_STEP_OVER;
     }
 
-    if (drawButton(520, 295, 55, 30, "Reset")) {
+    if (drawButton(476, 295, 54, 30, "Cursor")) {
+        action = GUI_ACTION_RUN_TO_CURSOR;
+    }
+
+    if (drawButton(534, 295, 48, 30, "Reset")) {
         action = GUI_ACTION_RESET;
     }
 
@@ -819,12 +925,15 @@ void Gui::formatMemoryLine(CPU& cpu, unsigned short address, char text[]) {
 void Gui::drawMemoryPanel(CPU& cpu) {
     unsigned short baseAddress = getMemoryViewerBaseAddress(cpu.getPC());
 
+    updateMemoryCursorFromMouse(cpu.getPC());
+
     DrawRectangleLines(875, 60, 285, 540, GREEN);
 
     DrawText("Memory Viewer", 895, 80, 18, GREEN);
 
     DrawText("RAM around PC", 895, 115, 14, RAYWHITE);
     DrawText("Yellow = current instruction", 895, 132, 11, YELLOW);
+    DrawText("Blue = run cursor", 895, 145, 11, SKYBLUE);
 
     for (int row = 0; row < 8; row++) {
         unsigned short rowAddress = baseAddress + row * 8;
@@ -834,7 +943,7 @@ void Gui::drawMemoryPanel(CPU& cpu) {
             rowAddress,
             cpu.getPC(),
             895,
-            155 + row * 28
+            165 + row * 28
         );
     }
 }
@@ -857,6 +966,10 @@ void Gui::drawMemoryLineWithHighlight(CPU& cpu, unsigned short address, unsigned
         if (isCurrentInstructionByte(byteAddress, pc)) {
             DrawRectangle(byteX - 3, y - 2, 19, 17, DARKGREEN);
             DrawText(byteText, byteX, y, 13, YELLOW);
+        }
+        else if (cursorAddressSelected && isCurrentInstructionByte(byteAddress, cursorAddress)) {
+            DrawRectangle(byteX - 3, y - 2, 19, 17, DARKBLUE);
+            DrawText(byteText, byteX, y, 13, SKYBLUE);
         }
         else {
             DrawText(byteText, byteX, y, 13, GREEN);
