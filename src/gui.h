@@ -33,6 +33,7 @@ public:
     static int hexDigitValue(char c);
     static char normalizeHexDigit(char c);
     static bool parseHex16(const char text[], unsigned short& value);
+    static bool parseHex8(const char text[], unsigned char& value);
 
     static void disassembleInstruction(unsigned short word, char text[], int textSize);
     static void buildCurrentInstructionText(CPU& cpu, char text[], int textSize);
@@ -69,6 +70,12 @@ public:
     void clearSelectedRegister();
 
 
+    bool editMemoryByte(CPU& cpu, unsigned short address, unsigned char value);
+    bool editMemoryWord(CPU& cpu, unsigned short address, unsigned short value);
+    bool hasSelectedMemoryAddress();
+    unsigned short getSelectedMemoryAddress();
+    void clearSelectedMemoryAddress();
+
 
     void close();
 
@@ -90,10 +97,31 @@ private:
     bool cursorAddressSelected;
     void updateMemoryCursorFromMouse(unsigned short pc);
 
+    static unsigned short getMemoryByteAddressFromClick(
+        int mouseX,
+        int mouseY,
+        unsigned short pc,
+        bool& valid
+    );
+
+    void startMemoryEdit(unsigned short address);
+    void updateMemoryEditorFromMouse(bool running, CPU& cpu);
+    void updateMemoryEditorFromKeyboard(bool running, CPU& cpu);
+    bool appendMemoryEditDigit(char c);
+    bool removeMemoryEditDigit();
+    bool applyMemoryEdit(CPU& cpu);
+
     int selectedRegisterIndex;
     bool registerEditActive;
     char registerEditText[5];
     int registerEditLength;
+
+    unsigned short selectedMemoryAddress;
+    bool memoryAddressSelected;
+
+    bool memoryEditActive;
+    char memoryEditText[5];
+    int memoryEditLength;
 
     void startRegisterEdit(int registerIndex, unsigned short currentValue);
     void updateRegisterEditorFromMouse(bool running, CPU& cpu);
@@ -117,7 +145,7 @@ private:
 
     void drawRegisterPanel(CPU& cpu, bool running);
 
-    void drawMemoryPanel(CPU& cpu);
+    void drawMemoryPanel(CPU& cpu, bool running);
     void drawMemoryLineWithHighlight(
         CPU& cpu,
         unsigned short address,

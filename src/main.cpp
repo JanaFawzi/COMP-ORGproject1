@@ -2872,6 +2872,65 @@ void testGuiRegisterEditingModifiesRegisters() {
     printf("[PASS] GUI register editing modifies registers test passed\n");
 }
 
+void testGuiMemoryEditingModifiesRam() {
+    Gui gui;
+    CPU cpu;
+
+    unsigned char byteValue = 0;
+    unsigned short wordValue = 0;
+
+    cpu.reset();
+
+    assert(Gui::parseHex8("00", byteValue) == true);
+    assert(byteValue == 0x00);
+
+    assert(Gui::parseHex8("7F", byteValue) == true);
+    assert(byteValue == 0x7F);
+
+    assert(Gui::parseHex8("0xAB", byteValue) == true);
+    assert(byteValue == 0xAB);
+
+    assert(Gui::parseHex8("ff", byteValue) == true);
+    assert(byteValue == 0xFF);
+
+    assert(Gui::parseHex8("", byteValue) == false);
+    assert(Gui::parseHex8("100", byteValue) == false);
+    assert(Gui::parseHex8("GG", byteValue) == false);
+
+    assert(gui.hasSelectedMemoryAddress() == false);
+    assert(gui.getSelectedMemoryAddress() == 0);
+
+    assert(gui.editMemoryByte(cpu, 0x0040, 0xAB) == true);
+    assert(cpu.getMemory().read8(0x0040) == 0xAB);
+
+    assert(gui.editMemoryByte(cpu, 0x0041, 0xCD) == true);
+    assert(cpu.getMemory().read8(0x0041) == 0xCD);
+
+    assert(gui.editMemoryWord(cpu, 0x0042, 0xBEEF) == true);
+    assert(cpu.getMemory().read16(0x0042) == 0xBEEF);
+    assert(cpu.getMemory().read8(0x0042) == 0xEF);
+    assert(cpu.getMemory().read8(0x0043) == 0xBE);
+
+    cpu.getMemory().write8(0x0045, 0x11);
+    cpu.getMemory().write8(0x0046, 0x22);
+
+    assert(gui.editMemoryWord(cpu, 0x0045, 0x1234) == false);
+    assert(cpu.getMemory().read8(0x0045) == 0x11);
+    assert(cpu.getMemory().read8(0x0046) == 0x22);
+
+    cpu.getMemory().write8(0xFFFF, 0x55);
+    cpu.getMemory().write8(0x0000, 0x66);
+
+    assert(gui.editMemoryWord(cpu, 0xFFFF, 0x9999) == false);
+    assert(cpu.getMemory().read8(0xFFFF) == 0x55);
+    assert(cpu.getMemory().read8(0x0000) == 0x66);
+
+    assert(Gui::parseHex16("BEEF", wordValue) == true);
+    assert(wordValue == 0xBEEF);
+
+    printf("[PASS] GUI memory editing modifies RAM test passed\n");
+}
+
 void testMemoryViewerMatchesRam() {
     CPU cpu;
     Gui gui;
@@ -2899,6 +2958,7 @@ void testMemoryViewerMatchesRam() {
 
     printf("[PASS] Memory viewer test passed\n");
 }
+
 
 void writeWordToBin(FILE* file, unsigned short word) {
     fputc(word & 0x00FF, file);
@@ -3277,6 +3337,7 @@ int main() {
 
     testGuiStepExecutesOneInstruction();
     testGuiRegisterEditingModifiesRegisters();
+    testGuiMemoryEditingModifiesRam();
     testMemoryViewerMatchesRam();
     testFinalBinPrograms();
 

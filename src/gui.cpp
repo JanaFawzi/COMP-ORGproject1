@@ -19,6 +19,13 @@ Gui::Gui() {
     cursorAddress = 0;
     cursorAddressSelected = false;
 
+    selectedMemoryAddress = 0;
+    memoryAddressSelected = false;
+
+    memoryEditActive = false;
+    memoryEditText[0] = '\0';
+    memoryEditLength = 0;
+
     selectedRegisterIndex = -1;
     registerEditActive = false;
     registerEditText[0] = '\0';
@@ -173,7 +180,7 @@ GuiAction Gui::draw(
     action = drawControlPanel(running, cpu.isHalted());
     drawDisassemblyPanel(cpu);
     drawRegisterPanel(cpu, running);
-    drawMemoryPanel(cpu);
+    drawMemoryPanel(cpu, running);
     drawGraphicsPanel(cpu);
 
     EndDrawing();
@@ -368,6 +375,26 @@ void Gui::updateRegisterEditorFromKeyboard(bool running, CPU& cpu) {
     }
 }
 
+bool Gui::editMemoryByte(CPU& cpu, unsigned short address, unsigned char value) {
+    cpu.getMemory().write8(address, value);
+
+    return true;
+}
+
+bool Gui::editMemoryWord(CPU& cpu, unsigned short address, unsigned short value) {
+    if ((address & 1) != 0) {
+        return false;
+    }
+
+    if (address == 0xFFFF) {
+        return false;
+    }
+
+    cpu.getMemory().write16(address, value);
+
+    return true;
+}
+
 void Gui::updateKeyboardFromRaylib(CPU& cpu) {
     unsigned short keyCode = CPU::ZX16_KEY_NONE;
 
@@ -522,12 +549,13 @@ bool Gui::parseHex16(const char text[], unsigned short& value) {
     }
 
     int index = 0;
-    int digitCount = 0;
-    unsigned int parsedValue = 0;
 
     if (text[0] == '0' && (text[1] == 'x' || text[1] == 'X')) {
         index = 2;
     }
+
+    int digitCount = 0;
+    unsigned int result = 0;
 
     while (text[index] != '\0') {
         if (!isHexDigit(text[index])) {
@@ -538,7 +566,8 @@ bool Gui::parseHex16(const char text[], unsigned short& value) {
             return false;
         }
 
-        parsedValue = (parsedValue << 4) | hexDigitValue(text[index]);
+        result = (result << 4) | hexDigitValue(text[index]);
+
         digitCount++;
         index++;
     }
@@ -547,7 +576,7 @@ bool Gui::parseHex16(const char text[], unsigned short& value) {
         return false;
     }
 
-    value = (unsigned short)(parsedValue & 0xFFFF);
+    value = (unsigned short)result;
 
     return true;
 }
@@ -1115,8 +1144,52 @@ void Gui::formatMemoryLine(CPU& cpu, unsigned short address, char text[]) {
     );
 }
 
-void Gui::drawMemoryPanel(CPU& cpu) {
+void Gui::drawMemoryLineWithHighlight(CPU& cpu, unsigned short address, unsigned short pc, int x, int y) {
+    char prefix[20];
+    char byteText[8];
+
+    sprintf(prefix, "0x%04X:", address);
+    DrawText(prefix, x, y, 13, GREEN);
+
+    int byteX = x + 68;
+
+    for (int col = 0; col < 8; col++) {
+        unsigned short byteAddress = address + col;
+        unsigned char value = cpu.getMemory().read8(byteAddress);
+
+        sprintf(byteText, "%02X", value);
+
+        if (memoryAddressSelected && byteAddress == selectedMemoryAddress) {
+            DrawRectangle(byteX - 3, y - 2, 19, 17, MAROON);
+            DrawText(byteText, byteX, y, 13, YELLOW);
+        }
+        else if (isCurrentInstructionByte(byteAddress, pc)) {
+            DrawRectangle(byteX - 3, y - 2, 19, 17, DARKGREEN);
+            DrawText(byteText, byteX, y, 13, YELLOW);
+        }
+        else if (cursorAddressSelected && isCurrentInstructionByte(byteAddress, cursorAddress)) {
+            DrawRectangle(byteX - 3, y - 2, 19, 17, DARKBLUE);
+            DrawText(byteText, byteX, y, 13, SKYBLUE);
+        }
+        else {
+            DrawText(byteText, byteX, y, 13, GREEN);
+        }
+
+        byteX = byteX + 22;
+    }
+}
+
+void Gui::drawMemoryPanel(CPU& cpu, bool running) {
     unsigned short baseAddress = getMemoryViewerBaseAddress(cpu.getPC());
+
+    if (running) {
+        updateMemoryCursorFromMouse(cpu.getPC());
+    }
+    else {
+        updateMemoryEditorFromMouse(running, cpu);
+    }
+
+    updateMemoryEditorFromKeyboard(running, cpu);
 
     DrawRectangleLines(875, 60, 285, 540, GREEN);
 
@@ -1137,36 +1210,36 @@ void Gui::drawMemoryPanel(CPU& cpu) {
             165 + row * 28
         );
     }
-}
 
-void Gui::drawMemoryLineWithHighlight(CPU& cpu, unsigned short address, unsigned short pc, int x, int y) {
-    char prefix[20];
-    char byteText[8];
+    DrawText("Paused edit: click byte", 895, 405, 11, RAYWHITE);
+    DrawText("2 hex=byte, 4 hex=word", 895, 420, 11, RAYWHITE);
+    DrawText("Enter=save, Esc=cancel", 895, 435, 11, RAYWHITE);
 
-    sprintf(prefix, "0x%04X:", address);
-    DrawText(prefix, x, y, 13, GREEN);
+    if (memoryAddressSelected) {
+        char selectedText[80];
 
-    int byteX = x + 68;
+        sprintf(
+            selectedText,
+            "Selected: 0x%04X = %02X",
+            selectedMemoryAddress,
+            cpu.getMemory().read8(selectedMemoryAddress)
+        );
 
-    for (int col = 0; col < 8; col++) {
-        unsigned short byteAddress = address + col;
-        unsigned char value = cpu.getMemory().read8(byteAddress);
+        DrawText(selectedText, 895, 460, 12, SKYBLUE);
+    }
 
-        sprintf(byteText, "%02X", value);
+    if (memoryEditActive) {
+        char editText[80];
 
-        if (isCurrentInstructionByte(byteAddress, pc)) {
-            DrawRectangle(byteX - 3, y - 2, 19, 17, DARKGREEN);
-            DrawText(byteText, byteX, y, 13, YELLOW);
-        }
-        else if (cursorAddressSelected && isCurrentInstructionByte(byteAddress, cursorAddress)) {
-            DrawRectangle(byteX - 3, y - 2, 19, 17, DARKBLUE);
-            DrawText(byteText, byteX, y, 13, SKYBLUE);
-        }
-        else {
-            DrawText(byteText, byteX, y, 13, GREEN);
-        }
+        sprintf(editText, "Edit value: %s", memoryEditText);
 
-        byteX = byteX + 22;
+        DrawRectangle(895, 480, 230, 28, DARKGRAY);
+        DrawRectangleLines(895, 480, 230, 28, SKYBLUE);
+        DrawText(editText, 902, 488, 12, YELLOW);
+    }
+
+    if (running) {
+        DrawText("Pause before editing memory", 895, 515, 11, ORANGE);
     }
 }
 
@@ -1358,6 +1431,218 @@ void Gui::updateMemoryCursorFromMouse(unsigned short pc) {
     }
 }
 
+unsigned short Gui::getMemoryByteAddressFromClick(
+    int mouseX,
+    int mouseY,
+    unsigned short pc,
+    bool& valid
+) {
+    valid = false;
+
+    int memoryX = 895;
+    int memoryY = 155;
+    int rowHeight = 28;
+    int rowCount = 8;
+
+    int byteStartX = memoryX + 68;
+    int byteWidth = 22;
+    int byteCount = 8;
+
+    if (mouseY < memoryY) {
+        return 0;
+    }
+
+    if (mouseY >= memoryY + rowCount * rowHeight) {
+        return 0;
+    }
+
+    if (mouseX < byteStartX) {
+        return 0;
+    }
+
+    if (mouseX >= byteStartX + byteCount * byteWidth) {
+        return 0;
+    }
+
+    int row = (mouseY - memoryY) / rowHeight;
+    int byteColumn = (mouseX - byteStartX) / byteWidth;
+
+    if (row < 0 || row >= rowCount) {
+        return 0;
+    }
+
+    if (byteColumn < 0 || byteColumn >= byteCount) {
+        return 0;
+    }
+
+    unsigned short baseAddress = getMemoryViewerBaseAddress(pc);
+    unsigned short selectedAddress = (unsigned short)(baseAddress + row * 8 + byteColumn);
+
+    valid = true;
+
+    return selectedAddress;
+}
+
+void Gui::startMemoryEdit(unsigned short address) {
+    selectedMemoryAddress = address;
+    memoryAddressSelected = true;
+
+    memoryEditActive = true;
+    memoryEditText[0] = '\0';
+    memoryEditLength = 0;
+}
+
+void Gui::updateMemoryEditorFromMouse(bool running, CPU& cpu) {
+    if (running) {
+        return;
+    }
+
+    if (!IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        return;
+    }
+
+    bool valid = false;
+
+    unsigned short address = getMemoryByteAddressFromClick(
+        GetMouseX(),
+        GetMouseY(),
+        cpu.getPC(),
+        valid
+    );
+
+    if (valid) {
+        startMemoryEdit(address);
+    }
+}
+
+void Gui::updateMemoryEditorFromKeyboard(bool running, CPU& cpu) {
+    if (running) {
+        return;
+    }
+
+    if (!memoryEditActive) {
+        return;
+    }
+
+    int key = GetCharPressed();
+
+    while (key > 0) {
+        char c = (char)key;
+
+        if (isHexDigit(c)) {
+            appendMemoryEditDigit(c);
+        }
+
+        key = GetCharPressed();
+    }
+
+    if (IsKeyPressed(KEY_BACKSPACE)) {
+        removeMemoryEditDigit();
+    }
+
+    if (IsKeyPressed(KEY_ENTER)) {
+        applyMemoryEdit(cpu);
+    }
+
+    if (IsKeyPressed(KEY_ESCAPE)) {
+        memoryEditActive = false;
+        memoryEditText[0] = '\0';
+        memoryEditLength = 0;
+    }
+}
+
+bool Gui::appendMemoryEditDigit(char c) {
+    if (!isHexDigit(c)) {
+        return false;
+    }
+
+    if (memoryEditLength >= 4) {
+        return false;
+    }
+
+    memoryEditText[memoryEditLength] = normalizeHexDigit(c);
+    memoryEditLength++;
+    memoryEditText[memoryEditLength] = '\0';
+
+    return true;
+}
+
+bool Gui::removeMemoryEditDigit() {
+    if (memoryEditLength <= 0) {
+        return false;
+    }
+
+    memoryEditLength--;
+    memoryEditText[memoryEditLength] = '\0';
+
+    return true;
+}
+
+bool Gui::applyMemoryEdit(CPU& cpu) {
+    if (!memoryEditActive) {
+        return false;
+    }
+
+    if (!memoryAddressSelected) {
+        return false;
+    }
+
+    if (memoryEditLength == 2) {
+        unsigned char value = 0;
+
+        if (!parseHex8(memoryEditText, value)) {
+            return false;
+        }
+
+        if (!editMemoryByte(cpu, selectedMemoryAddress, value)) {
+            return false;
+        }
+
+        memoryEditActive = false;
+        memoryEditText[0] = '\0';
+        memoryEditLength = 0;
+
+        return true;
+    }
+
+    if (memoryEditLength == 4) {
+        unsigned short value = 0;
+
+        if (!parseHex16(memoryEditText, value)) {
+            return false;
+        }
+
+        if (!editMemoryWord(cpu, selectedMemoryAddress, value)) {
+            return false;
+        }
+
+        memoryEditActive = false;
+        memoryEditText[0] = '\0';
+        memoryEditLength = 0;
+
+        return true;
+    }
+
+    return false;
+}
+
+bool Gui::hasSelectedMemoryAddress() {
+    return memoryAddressSelected;
+}
+
+unsigned short Gui::getSelectedMemoryAddress() {
+    return selectedMemoryAddress;
+}
+
+void Gui::clearSelectedMemoryAddress() {
+    selectedMemoryAddress = 0;
+    memoryAddressSelected = false;
+
+    memoryEditActive = false;
+    memoryEditText[0] = '\0';
+    memoryEditLength = 0;
+}
+
 bool Gui::isCurrentInstructionByte(unsigned short address, unsigned short pc) {
     if (address == pc) {
         return true;
@@ -1368,6 +1653,48 @@ bool Gui::isCurrentInstructionByte(unsigned short address, unsigned short pc) {
     }
 
     return false;
+}
+
+bool Gui::parseHex8(const char text[], unsigned char& value) {
+    if (text == 0) {
+        return false;
+    }
+
+    int index = 0;
+
+    if (text[0] == '0' && (text[1] == 'x' || text[1] == 'X')) {
+        index = 2;
+    }
+
+    int digitCount = 0;
+    unsigned int result = 0;
+
+    while (text[index] != '\0') {
+        if (!isHexDigit(text[index])) {
+            return false;
+        }
+
+        if (digitCount >= 2) {
+            return false;
+        }
+
+        result = (result << 4) | hexDigitValue(text[index]);
+
+        digitCount++;
+        index++;
+    }
+
+    if (digitCount == 0) {
+        return false;
+    }
+
+    if (result > 0xFF) {
+        return false;
+    }
+
+    value = (unsigned char)result;
+
+    return true;
 }
 
 void Gui::close() {
