@@ -859,21 +859,21 @@ void Gui::drawGraphicsPanel(CPU& cpu) {
     Color color;
 
     int panelX = 315;
-    int panelY = 440;
+    int panelY = 430;
     int panelW = 270;
-    int panelH = 185;
-
-    int previewX = 335;
-    int previewY = 495;
+    int panelH = 195;
 
     int previewScale = 2;
     int previewW = GraphicsMemory::SCREEN_WIDTH / previewScale;
     int previewH = GraphicsMemory::SCREEN_HEIGHT / previewScale;
 
+    int previewX = panelX + (panelW - previewW) / 2;
+    int previewY = panelY + 58;
+
     DrawRectangleLines(panelX, panelY, panelW, panelH, GREEN);
 
-    DrawText("Graphics Output", panelX + 20, panelY + 20, 18, GREEN);
-    DrawText("Scaled 320x240 VRAM preview", panelX + 20, panelY + 44, 13, RAYWHITE);
+    DrawText("Graphics Output", panelX + 20, panelY + 14, 18, GREEN);
+    DrawText("Scaled 320x240 VRAM preview", panelX + 20, panelY + 38, 13, RAYWHITE);
 
     DrawRectangle(previewX, previewY, previewW, previewH, BLACK);
     DrawRectangleLines(previewX, previewY, previewW, previewH, GRAY);
@@ -917,7 +917,18 @@ bool Gui::drawButton(int x, int y, int w, int h, const char text[]) {
     }
 
     DrawRectangleLines(x, y, w, h, GREEN);
-    DrawText(text, x + 12, y + 8, 14, RAYWHITE);
+
+    int fontSize = 14;
+    int textWidth = MeasureText(text, fontSize);
+
+    int textX = x + (w - textWidth) / 2;
+    int textY = y + (h - fontSize) / 2;
+
+    if (textX < x + 2) {
+        textX = x + 2;
+    }
+
+    DrawText(text, textX, textY, fontSize, RAYWHITE);
 
     if (hover && IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
         return true;
