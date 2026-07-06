@@ -762,12 +762,36 @@ bool GraphicsMemory::renderScreen(Rgb888Color pixels[], int pixelCount) {
         return false;
     }
 
-    for (int y = 0; y < SCREEN_HEIGHT; y++) {
-        for (int x = 0; x < SCREEN_WIDTH; x++) {
-            int pixelNumber = getScreenPixelNumber(x, y);
+    Rgb888Color paletteColors[PALETTE_SIZE];
 
-            if (!renderScreenPixel(x, y, pixels[pixelNumber])) {
+    for (int paletteIndex = 0; paletteIndex < PALETTE_SIZE; paletteIndex++) {
+        if (!readPaletteRgb888Color(paletteIndex, paletteColors[paletteIndex])) {
+            return false;
+        }
+    }
+
+    for (int tileRow = 0; tileRow < TILE_ROWS; tileRow++) {
+        for (int tileCol = 0; tileCol < TILE_COLUMNS; tileCol++) {
+            unsigned char tileIndex = 0;
+
+            if (!readTileIndexChecked(tileCol, tileRow, tileIndex)) {
                 return false;
+            }
+
+            for (int tileY = 0; tileY < TILE_SIZE; tileY++) {
+                for (int tileX = 0; tileX < TILE_SIZE; tileX++) {
+                    unsigned char paletteIndex = 0;
+
+                    if (!readTilePixelPaletteIndex(tileIndex, tileX, tileY, paletteIndex)) {
+                        return false;
+                    }
+
+                    int screenX = tileCol * TILE_SIZE + tileX;
+                    int screenY = tileRow * TILE_SIZE + tileY;
+                    int pixelNumber = getScreenPixelNumber(screenX, screenY);
+
+                    pixels[pixelNumber] = paletteColors[paletteIndex];
+                }
             }
         }
     }

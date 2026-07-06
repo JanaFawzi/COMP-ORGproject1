@@ -3080,6 +3080,63 @@ void testCpuLongRunningProgram() {
     printf("[PASS] CPU long-running program stress test passed\n");
 }
 
+void testDemoIntegrationRegression() {
+    CPU cpu;
+
+    loadGuiDemoProgram(cpu);
+
+    GraphicsMemory graphics(cpu.getMemory());
+
+    cpu.setKeyboardKey(CPU::ZX16_KEY_RIGHT);
+    assert(updateKeyboardDemo(cpu) == true);
+    assert(graphics.readTileIndex(3, 12) == 9);
+
+    cpu.setKeyboardKey(CPU::ZX16_KEY_SPACE);
+    assert(updateAudioDemo(cpu) == true);
+    assert(cpu.hasPendingTone() == true);
+
+    cpu.setBreakpoint(0x0020);
+    assert(cpu.getBreakpointCount() == 1);
+
+    loadGuiDemoProgram(cpu);
+
+    assert(cpu.getPC() == 0x0020);
+    assert(cpu.getKeyboardKey() == CPU::ZX16_KEY_NONE);
+    assert(cpu.hasPendingTone() == false);
+    assert(cpu.getBreakpointCount() == 0);
+    assert(graphics.readTileIndex(2, 12) == 9);
+    assert(graphics.readTileIndex(3, 12) == 1);
+
+    printf("[PASS] Demo integration regression test passed\n");
+}
+
+void testOptimizedRendererStableExecution() {
+    Memory memory;
+    GraphicsMemory graphics(memory);
+
+    static Rgb888Color pixels[GraphicsMemory::SCREEN_PIXEL_COUNT];
+
+    graphics.writePaletteColor(5, 0xA9);
+    graphics.clearTileDefinition(3, 5);
+    graphics.fillTileMap(3);
+
+    for (int frame = 0; frame < 120; frame++) {
+        assert(graphics.renderScreen(pixels, GraphicsMemory::SCREEN_PIXEL_COUNT) == true);
+
+        int centerPixel = GraphicsMemory::getScreenPixelNumber(160, 120);
+        int lastPixel = GraphicsMemory::SCREEN_PIXEL_COUNT - 1;
+
+        assertRgbColor(pixels[0], 0xB6, 0x49, 0x55);
+        assertRgbColor(pixels[centerPixel], 0xB6, 0x49, 0x55);
+        assertRgbColor(pixels[lastPixel], 0xB6, 0x49, 0x55);
+    }
+
+    assert(graphics.readTileIndex(0, 0) == 3);
+    assert(graphics.readTileIndex(19, 14) == 3);
+
+    printf("[PASS] Optimized renderer stable execution test passed\n");
+}
+
 void resetWholeSimulator(Gui& gui, CPU& cpu, bool& running, int& runDelay) {
     loadGuiDemoProgram(cpu);
 
@@ -3733,9 +3790,11 @@ int main() {
     testRendererConnectedToVram();
     testFrameTimingStableRefresh();
     testGraphicsContinuousRenderingStress();
+    testOptimizedRendererStableExecution();
     testFirstGraphicsDemoDrawsStaticImage();
     testKeyboardDemoMovesObject();
     testAudioDemoPlaysSoundWithKeyPress();
+    testDemoIntegrationRegression();
 
     testEcallPrintStringExecution();
     testEcallReadIntExecution();
@@ -3832,6 +3891,11 @@ int main() {
     runToCursorActive,
             runDelay
         );
+
+        if (action == GUI_ACTION_RESET) {
+            keyboardMoveDelay = 0;
+            lastAudioDemoKey = CPU::ZX16_KEY_NONE;
+        }
 
         unsigned short currentAudioDemoKey = guiCpu.getKeyboardKey();
 
