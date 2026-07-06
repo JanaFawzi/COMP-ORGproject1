@@ -13,8 +13,18 @@ static Sound guiToneSound;
 static unsigned int guiLastToneRequestId = 0;
 
 Gui::Gui() {
-    width = 1180;
-    height = 650;
+    width = 800;
+    height = 600;
+    graphicsWidth = 800;
+    graphicsHeight = 600;
+    expandedWidth = 1360;
+    cpuPanelX = 800;
+    cpuScale = 1.0f;
+    cpuOffsetY = 0;
+    drawingCpuPanel = false;
+    statusPanelVisible = false;
+    viewMode = GUI_VIEW_GRAPHICS_ONLY;
+    dataPanel = GUI_DATA_REGISTERS;
 
     cursorAddress = 0;
     cursorAddressSelected = false;
@@ -147,10 +157,64 @@ void Gui::buildConsoleVisibleText(const char consoleText[], char visibleText[], 
 void Gui::open() {
     InitWindow(width, height, "ZX16 Simulator");
 
+    calculateLayout();
+    SetWindowSize(graphicsWidth, graphicsHeight);
+
+    int monitor = GetCurrentMonitor();
+    int monitorWidth = GetMonitorWidth(monitor);
+    SetWindowPosition(monitorWidth - graphicsWidth - 20, 20);
+
     InitAudioDevice();
     guiAudioReady = IsAudioDeviceReady();
 
     SetTargetFPS(getTargetFps());
+}
+
+void Gui::calculateLayout() {
+    int monitor = GetCurrentMonitor();
+    int monitorWidth = GetMonitorWidth(monitor);
+    int monitorHeight = GetMonitorHeight(monitor);
+
+    graphicsHeight = (monitorHeight * 55) / 100;
+    if (graphicsHeight < 400) graphicsHeight = 400;
+    if (graphicsHeight > 580) graphicsHeight = 580;
+
+    graphicsWidth = (graphicsHeight * 4) / 3;
+    expandedWidth = monitorWidth - 20;
+    int maximumGraphicsWidth = expandedWidth - 760;
+    if (maximumGraphicsWidth < 320) maximumGraphicsWidth = 320;
+    if (graphicsWidth > maximumGraphicsWidth) {
+        graphicsWidth = maximumGraphicsWidth;
+        graphicsHeight = (graphicsWidth * 3) / 4;
+    }
+
+    height = graphicsHeight;
+    cpuPanelX = graphicsWidth;
+    cpuScale = 1.0f;
+    cpuOffsetY = 0;
+}
+
+bool Gui::isExpanded() {
+    return viewMode == GUI_VIEW_EXPANDED;
+}
+
+void Gui::toggleViewMode() {
+    int monitor = GetCurrentMonitor();
+    int monitorWidth = GetMonitorWidth(monitor);
+
+    if (isExpanded()) {
+        viewMode = GUI_VIEW_GRAPHICS_ONLY;
+        statusPanelVisible = false;
+        width = graphicsWidth;
+        SetWindowSize(width, graphicsHeight);
+        SetWindowPosition(monitorWidth - width - 20, 20);
+    }
+    else {
+        viewMode = GUI_VIEW_EXPANDED;
+        width = expandedWidth;
+        SetWindowSize(width, graphicsHeight);
+        SetWindowPosition(monitorWidth - width - 10, 20);
+    }
 }
 
 bool Gui::shouldClose() {
@@ -173,34 +237,135 @@ GuiAction Gui::draw(
     updateKeyboardFromRaylib(cpu);
     updateAudioFromCpu(cpu);
 
-    DrawText("ZX16 Simulator", 490, 15, 22, RAYWHITE);
-
-    drawStatusPanel(testStatus, frameNumber, running, cpu);
-    drawConsolePanel(consoleText);
-    action = drawControlPanel(running, cpu.isHalted());
-    drawDisassemblyPanel(cpu);
-    drawRegisterPanel(cpu, running);
-    drawMemoryPanel(cpu, running);
     drawGraphicsPanel(cpu);
+
+    action = GUI_ACTION_NONE;
+    if (drawViewToggleButton()) {
+        toggleViewMode();
+    }
+
+    if (isExpanded()) {
+        DrawLine(cpuPanelX, 0, cpuPanelX, graphicsHeight, GREEN);
+        Camera2D cpuCamera = { 0 };
+        cpuCamera.offset = { (float)cpuPanelX, (float)cpuOffsetY };
+        cpuCamera.target = { 0.0f, 0.0f };
+        cpuCamera.rotation = 0.0f;
+        cpuCamera.zoom = 1.0f;
+
+        drawingCpuPanel = true;
+        BeginMode2D(cpuCamera);
+        drawConsolePanel(consoleText);
+        action = drawControlPanel(running, cpu.isHalted());
+        drawDisassemblyPanel(cpu, running);
+        drawDataPanelTabs();
+        if (dataPanel == GUI_DATA_REGISTERS) {
+            drawRegisterPanel(cpu, running);
+        }
+        else {
+            drawMemoryPanel(cpu, running);
+        }
+        if (drawStatusToggleButton()) {
+            statusPanelVisible = !statusPanelVisible;
+            SetWindowSize(expandedWidth, graphicsHeight + (statusPanelVisible ? 180 : 0));
+        }
+        if (statusPanelVisible) {
+            drawStatusPanel(testStatus, frameNumber, running, cpu);
+        }
+        EndMode2D();
+        drawingCpuPanel = false;
+    }
 
     EndDrawing();
 
     return action;
 }
 
-void Gui::drawDisassemblyPanel(CPU& cpu) {
-    char instructionText[128];
+bool Gui::drawViewToggleButton() {
+    const char* arrow = isExpanded() ? ">" : "<";
+    int buttonX = graphicsWidth - 46;
+    return drawButton(buttonX, 12, 34, 30, arrow);
+}
 
-    buildCurrentInstructionText(cpu, instructionText, 128);
+void Gui::drawDataPanelTabs() {
+    if (drawButton(260, 15, 105, 28, "Registers")) {
+        dataPanel = GUI_DATA_REGISTERS;
+        clearSelectedMemoryAddress();
+    }
 
-    DrawRectangleLines(315, 355, 270, 70, GREEN);
+    if (drawButton(370, 15, 105, 28, "RAM")) {
+        dataPanel = GUI_DATA_RAM;
+        clearSelectedRegister();
+    }
 
-    DrawText("Disassembly", 335, 370, 18, GREEN);
+    if (dataPanel == GUI_DATA_REGISTERS) {
+        DrawRectangleLines(260, 15, 105, 28, YELLOW);
+    }
+    else {
+        DrawRectangleLines(370, 15, 105, 28, YELLOW);
+    }
+}
 
-    DrawRectangle(335, 397, 230, 22, DARKGRAY);
-    DrawRectangleLines(335, 397, 230, 22, GRAY);
+bool Gui::drawStatusToggleButton() {
+    int cpuWidth = expandedWidth - graphicsWidth;
+    int x = cpuWidth / 2 - 24;
+    int y = graphicsHeight - 32;
+    return drawButton(x, y, 48, 24, statusPanelVisible ? "^" : "v");
+}
 
-    DrawText(instructionText, 342, 401, 10, YELLOW);
+int Gui::getUiMouseX() {
+    if (!drawingCpuPanel) return GetMouseX();
+    return GetMouseX() - cpuPanelX;
+}
+
+int Gui::getUiMouseY() {
+    if (!drawingCpuPanel) return GetMouseY();
+    return GetMouseY();
+}
+
+void Gui::drawDisassemblyPanel(CPU& cpu, bool running) {
+    unsigned short baseAddress = getDisassemblyBaseAddress(cpu.getPC());
+    int cpuWidth = expandedWidth - graphicsWidth;
+    int panelWidth = cpuWidth - 500;
+
+    updateDisassemblyBreakpointFromMouse(running, cpu);
+    updateDisassemblyCursorFromMouse(cpu.getPC());
+
+    DrawRectangleLines(490, 55, panelWidth, graphicsHeight - 100, GREEN);
+    DrawText("Disassembly / Debugger", 502, 68, 18, GREEN);
+    DrawText("Yellow=current Blue=cursor Red=breakpoint", 500, 92, 10, RAYWHITE);
+
+    for (int row = 0; row < 11; row++) {
+        unsigned short address = (unsigned short)(baseAddress + row * 2);
+        drawDisassemblyLine(cpu, address, 500, 112 + row * 23);
+    }
+
+    DrawText("Left=cursor Right-click=breakpoint", 500, 370, 10, RAYWHITE);
+    DrawText("Shift+left also toggles breakpoint", 500, 386, 10, GRAY);
+}
+
+void Gui::drawDisassemblyLine(CPU& cpu, unsigned short address, int x, int y) {
+    char disassembly[80];
+    char text[128];
+    unsigned short word = cpu.getMemory().read16(address);
+    Color textColor = GREEN;
+
+    disassembleInstruction(word, disassembly, 80);
+    snprintf(text, 128, "0x%04X  %04X  %s", address, word, disassembly);
+
+    if (cpu.hasBreakpoint(address)) {
+        DrawRectangle(x - 3, y - 2, 270, 18, RED);
+        textColor = YELLOW;
+    }
+    else if (address == cpu.getPC()) {
+        DrawRectangle(x - 3, y - 2, 270, 18, DARKGREEN);
+        textColor = YELLOW;
+    }
+    else if (cursorAddressSelected && address == cursorAddress) {
+        DrawRectangle(x - 3, y - 2, 270, 18, DARKBLUE);
+        textColor = SKYBLUE;
+    }
+
+    DrawText(text, x, y, 11, textColor);
 }
 
 bool Gui::editRegister(CPU& cpu, int registerIndex, unsigned short value) {
@@ -247,11 +412,11 @@ void Gui::startRegisterEdit(int registerIndex, unsigned short currentValue) {
 }
 
 int Gui::getRegisterIndexFromClick(int mouseX, int mouseY) {
-    int registerX = 625;
-    int registerW = 210;
-    int firstRegisterY = 176;
-    int rowHeight = 24;
-    int selectableHeight = 20;
+    int registerX = 270;
+    int registerW = 195;
+    int firstRegisterY = 128;
+    int rowHeight = 22;
+    int selectableHeight = 19;
 
     if (mouseX < registerX || mouseX >= registerX + registerW) {
         return -1;
@@ -284,7 +449,7 @@ void Gui::updateRegisterEditorFromMouse(bool running, CPU& cpu) {
         return;
     }
 
-    int registerIndex = getRegisterIndexFromClick(GetMouseX(), GetMouseY());
+    int registerIndex = getRegisterIndexFromClick(getUiMouseX(), getUiMouseY());
 
     if (isValidRegisterEditIndex(registerIndex)) {
         startRegisterEdit(registerIndex, cpu.getRegisters().getRegister(registerIndex));
@@ -948,26 +1113,28 @@ void Gui::drawStatusPanel(
         sprintf(stateText, "CPU state: PAUSED");
     }
 
-    DrawRectangleLines(25, 60, 260, 540, GREEN);
+    int cpuWidth = expandedWidth - graphicsWidth;
+    int panelY = graphicsHeight + 4;
 
-    DrawText("Status Panel", 45, 80, 18, GREEN);
-    DrawText(testStatus, 45, 115, 14, RAYWHITE);
+    DrawRectangleLines(10, panelY, cpuWidth - 20, 168, GREEN);
+    DrawText("Status Panel", 25, panelY + 12, 18, GREEN);
+    DrawText(testStatus, 25, panelY + 38, 13, RAYWHITE);
 
-    DrawText("Window open: PASSED", 45, 150, 14, GREEN);
-    DrawText("Console panel: PASSED", 45, 175, 14, GREEN);
-    DrawText("Buttons: PASSED", 45, 200, 14, GREEN);
-    DrawText("Register display: PASSED", 45, 225, 14, GREEN);
-    DrawText("Memory viewer: PASSED", 45, 250, 14, GREEN);
-    DrawText("Graphics output: PASSED", 45, 275, 14, GREEN);
+    DrawText("Window: PASSED", 25, panelY + 65, 12, GREEN);
+    DrawText("Console: PASSED", 25, panelY + 84, 12, GREEN);
+    DrawText("Controls: PASSED", 25, panelY + 103, 12, GREEN);
+    DrawText("Registers/RAM: PASSED", 25, panelY + 122, 12, GREEN);
+    DrawText("Debugger: PASSED", 25, panelY + 141, 12, GREEN);
 
-    DrawText(pcText, 45, 325, 14, GREEN);
-    DrawText(spText, 45, 350, 14, GREEN);
-    DrawText(stateText, 45, 375, 14, GREEN);
-    DrawText(frameText, 45, 400, 14, GREEN);
-    DrawText(fpsText, 45, 425, 14, GREEN);
-    DrawText(frameTimeText, 45, 450, 14, GREEN);
-    DrawText(keyText, 45, 475, 14, GREEN);
-    DrawText(volumeText, 45, 500, 14, GREEN);
+    DrawText(pcText, 220, panelY + 38, 12, GREEN);
+    DrawText(spText, 220, panelY + 58, 12, GREEN);
+    DrawText(stateText, 220, panelY + 78, 12, GREEN);
+    DrawText(frameText, 220, panelY + 98, 12, GREEN);
+
+    DrawText(fpsText, 430, panelY + 38, 12, GREEN);
+    DrawText(frameTimeText, 430, panelY + 58, 12, GREEN);
+    DrawText(keyText, 430, panelY + 78, 12, GREEN);
+    DrawText(volumeText, 430, panelY + 98, 12, GREEN);
 }
 
 void Gui::drawConsolePanel(const char consoleText[]) {
@@ -975,15 +1142,15 @@ void Gui::drawConsolePanel(const char consoleText[]) {
 
     buildConsoleVisibleText(consoleText, visibleText, 512);
 
-    DrawRectangleLines(315, 60, 270, 165, GREEN);
+    DrawRectangleLines(10, 55, 235, 145, GREEN);
 
-    DrawText("Console", 335, 80, 18, GREEN);
+    DrawText("Console", 25, 70, 18, GREEN);
 
-    DrawRectangle(335, 115, 230, 85, DARKGRAY);
-    DrawRectangleLines(335, 115, 230, 85, GRAY);
+    DrawRectangle(25, 100, 205, 80, DARKGRAY);
+    DrawRectangleLines(25, 100, 205, 80, GRAY);
 
-    BeginScissorMode(335, 115, 230, 85);
-    drawConsoleTextLines(visibleText, 345, 125);
+    BeginScissorMode(cpuPanelX + 25, 100, 205, 80);
+    drawConsoleTextLines(visibleText, 32, 108);
     EndScissorMode();
 }
 
@@ -1026,39 +1193,39 @@ void Gui::drawConsoleTextLines(const char visibleText[], int x, int y) {
 GuiAction Gui::drawControlPanel(bool running, bool halted) {
     GuiAction action = GUI_ACTION_NONE;
 
-    DrawRectangleLines(315, 240, 270, 100, GREEN);
+    DrawRectangleLines(10, 210, 235, 92, GREEN);
 
-    DrawText("Controls", 335, 255, 18, GREEN);
+    DrawText("Controls", 25, 224, 18, GREEN);
 
     if (halted) {
-        if (drawButton(320, 295, 48, 30, "Run")) {
+        if (drawButton(15, 260, 42, 28, "Run")) {
             action = GUI_ACTION_RUN_PAUSE;
         }
     }
     else if (running) {
-        if (drawButton(320, 295, 48, 30, "Pause")) {
+        if (drawButton(15, 260, 42, 28, "Pause")) {
             action = GUI_ACTION_RUN_PAUSE;
         }
     }
     else {
-        if (drawButton(320, 295, 48, 30, "Run")) {
+        if (drawButton(15, 260, 42, 28, "Run")) {
             action = GUI_ACTION_RUN_PAUSE;
         }
     }
 
-    if (drawButton(372, 295, 48, 30, "Step")) {
+    if (drawButton(60, 260, 42, 28, "Step")) {
         action = GUI_ACTION_STEP;
     }
 
-    if (drawButton(424, 295, 48, 30, "Over")) {
+    if (drawButton(105, 260, 42, 28, "Over")) {
         action = GUI_ACTION_STEP_OVER;
     }
 
-    if (drawButton(476, 295, 54, 30, "Cursor")) {
+    if (drawButton(150, 260, 42, 28, "Curs")) {
         action = GUI_ACTION_RUN_TO_CURSOR;
     }
 
-    if (drawButton(534, 295, 48, 30, "Reset")) {
+    if (drawButton(195, 260, 42, 28, "Reset")) {
         action = GUI_ACTION_RESET;
     }
 
@@ -1071,21 +1238,21 @@ void Gui::drawRegisterPanel(CPU& cpu, bool running) {
     updateRegisterEditorFromMouse(running, cpu);
     updateRegisterEditorFromKeyboard(running, cpu);
 
-    DrawRectangleLines(615, 60, 240, 540, GREEN);
+    DrawRectangleLines(260, 55, 220, graphicsHeight - 100, GREEN);
 
-    DrawText("Registers", 635, 80, 18, GREEN);
+    DrawText("Registers", 275, 68, 18, GREEN);
 
     sprintf(text, "PC     : 0x%04X", cpu.getPC());
-    DrawText(text, 635, 115, 14, GREEN);
+    DrawText(text, 275, 94, 14, GREEN);
 
     sprintf(text, "SP/x2  : 0x%04X", cpu.getSP());
-    DrawText(text, 635, 140, 14, GREEN);
+    DrawText(text, 275, 112, 14, GREEN);
     for (int i = 0; i < RegisterFile::REGISTER_COUNT; i++) {
-        int rowY = 180 + i * 24;
+        int rowY = 132 + i * 22;
         Color textColor = GREEN;
 
         if (hasSelectedRegister() && selectedRegisterIndex == i) {
-            DrawRectangle(630, rowY - 4, 190, 20, DARKBLUE);
+            DrawRectangle(270, rowY - 4, 190, 19, DARKBLUE);
             textColor = SKYBLUE;
         }
 
@@ -1096,21 +1263,21 @@ void Gui::drawRegisterPanel(CPU& cpu, bool running) {
             sprintf(text, "x%d    : 0x%04X", i, cpu.getRegisters().getRegister(i));
         }
 
-        DrawText(text, 635, rowY, 14, textColor);
+        DrawText(text, 275, rowY, 14, textColor);
     }
 
-    DrawText("Register edit", 635, 390, 14, GREEN);
+    DrawText("Register edit", 275, 315, 14, GREEN);
 
     if (running) {
-        DrawText("Pause CPU to edit", 635, 412, 12, GRAY);
+        DrawText("Pause CPU to edit", 275, 336, 12, GRAY);
     }
     else {
-        DrawText("Click x0-x7, type HEX", 635, 412, 12, GRAY);
-        DrawText("Enter=save Esc=cancel", 635, 430, 12, GRAY);
+        DrawText("Click x0-x7, type HEX", 275, 336, 12, GRAY);
+        DrawText("Enter=save Esc=cancel", 275, 352, 12, GRAY);
     }
 
-    DrawRectangle(635, 455, 175, 28, DARKGRAY);
-    DrawRectangleLines(635, 455, 175, 28, GRAY);
+    DrawRectangle(275, 370, 175, 26, DARKGRAY);
+    DrawRectangleLines(275, 370, 175, 26, GRAY);
 
     if (hasSelectedRegister()) {
         if (registerEditLength > 0) {
@@ -1120,10 +1287,10 @@ void Gui::drawRegisterPanel(CPU& cpu, bool running) {
             sprintf(text, "x%d = 0x____", selectedRegisterIndex);
         }
 
-        DrawText(text, 645, 463, 14, SKYBLUE);
+        DrawText(text, 283, 376, 14, SKYBLUE);
     }
     else {
-        DrawText("no register selected", 645, 463, 12, GRAY);
+        DrawText("no register selected", 283, 377, 12, GRAY);
     }
 }
 
@@ -1144,7 +1311,7 @@ void Gui::formatMemoryLine(CPU& cpu, unsigned short address, char text[]) {
     );
 }
 
-void Gui::drawMemoryLineWithHighlight(CPU& cpu, unsigned short address, unsigned short pc, int x, int y) {
+void Gui::drawCompactMemoryLine(CPU& cpu, unsigned short address, int x, int y) {
     char prefix[20];
     char byteText[8];
 
@@ -1153,27 +1320,13 @@ void Gui::drawMemoryLineWithHighlight(CPU& cpu, unsigned short address, unsigned
 
     int byteX = x + 68;
 
-    for (int col = 0; col < 8; col++) {
+    for (int col = 0; col < 6; col++) {
         unsigned short byteAddress = address + col;
         unsigned char value = cpu.getMemory().read8(byteAddress);
 
         sprintf(byteText, "%02X", value);
 
-        unsigned short instructionAddress = byteAddress & 0xFFFE;
-
         if (memoryAddressSelected && byteAddress == selectedMemoryAddress) {
-            DrawRectangle(byteX - 3, y - 2, 19, 17, MAROON);
-            DrawText(byteText, byteX, y, 13, YELLOW);
-        }
-        else if (cpu.hasBreakpoint(instructionAddress)) {
-            DrawRectangle(byteX - 3, y - 2, 19, 17, RED);
-            DrawText(byteText, byteX, y, 13, YELLOW);
-        }
-        else if (isCurrentInstructionByte(byteAddress, pc)) {
-            DrawRectangle(byteX - 3, y - 2, 19, 17, DARKGREEN);
-            DrawText(byteText, byteX, y, 13, YELLOW);
-        }
-        else if (cursorAddressSelected && isCurrentInstructionByte(byteAddress, cursorAddress)) {
             DrawRectangle(byteX - 3, y - 2, 19, 17, DARKBLUE);
             DrawText(byteText, byteX, y, 13, SKYBLUE);
         }
@@ -1186,10 +1339,7 @@ void Gui::drawMemoryLineWithHighlight(CPU& cpu, unsigned short address, unsigned
 }
 
 void Gui::drawMemoryPanel(CPU& cpu, bool running) {
-    unsigned short baseAddress = getMemoryViewerBaseAddress(cpu.getPC());
-
-    updateBreakpointFromMouse(running, cpu);
-    updateMemoryCursorFromMouse(cpu.getPC());
+    unsigned short baseAddress = cpu.getPC() >= 30 ? (unsigned short)(cpu.getPC() - 30) : 0;
 
     if (!running) {
         updateMemoryEditorFromMouse(running, cpu);
@@ -1197,29 +1347,13 @@ void Gui::drawMemoryPanel(CPU& cpu, bool running) {
 
     updateMemoryEditorFromKeyboard(running, cpu);
 
-    DrawRectangleLines(875, 60, 285, 540, GREEN);
+    DrawRectangleLines(260, 55, 220, graphicsHeight - 100, GREEN);
+    DrawText("RAM", 275, 68, 18, GREEN);
+    DrawText("Right-click byte to edit", 275, 94, 11, RAYWHITE);
 
-    DrawText("Memory Viewer", 895, 80, 18, GREEN);
-
-    DrawText("RAM around PC", 895, 115, 14, RAYWHITE);
-    DrawText("Yellow = current instruction", 895, 132, 11, YELLOW);
-    DrawText("Blue = cursor  Red = breakpoint", 895, 145, 11, SKYBLUE);
-
-    for (int row = 0; row < 8; row++) {
-        unsigned short rowAddress = baseAddress + row * 8;
-
-        drawMemoryLineWithHighlight(
-            cpu,
-            rowAddress,
-            cpu.getPC(),
-            895,
-            165 + row * 28
-        );
+    for (int row = 0; row < 10; row++) {
+        drawCompactMemoryLine(cpu, (unsigned short)(baseAddress + row * 6), 270, 118 + row * 22);
     }
-
-    DrawText("Shift+left=breakpoint  Right-click=edit", 895, 405, 11, RAYWHITE);
-    DrawText("2 hex=byte, 4 hex=word", 895, 420, 11, RAYWHITE);
-    DrawText("Enter=save, Esc=cancel", 895, 435, 11, RAYWHITE);
 
     if (memoryAddressSelected) {
         char selectedText[80];
@@ -1231,7 +1365,7 @@ void Gui::drawMemoryPanel(CPU& cpu, bool running) {
             cpu.getMemory().read8(selectedMemoryAddress)
         );
 
-        DrawText(selectedText, 895, 460, 12, SKYBLUE);
+        DrawText(selectedText, 275, 342, 11, SKYBLUE);
     }
 
     if (memoryEditActive) {
@@ -1239,13 +1373,17 @@ void Gui::drawMemoryPanel(CPU& cpu, bool running) {
 
         sprintf(editText, "Edit value: %s", memoryEditText);
 
-        DrawRectangle(895, 480, 230, 28, DARKGRAY);
-        DrawRectangleLines(895, 480, 230, 28, SKYBLUE);
-        DrawText(editText, 902, 488, 12, YELLOW);
+        DrawRectangle(275, 360, 190, 24, DARKGRAY);
+        DrawRectangleLines(275, 360, 190, 24, SKYBLUE);
+        DrawText(editText, 282, 366, 11, YELLOW);
     }
 
     if (running) {
-        DrawText("Pause before editing memory", 895, 515, 11, ORANGE);
+        DrawText("Pause CPU to edit RAM", 275, 390, 11, ORANGE);
+    }
+    else {
+        DrawText("2 hex=byte, 4 hex=word", 275, 390, 10, GRAY);
+        DrawText("Enter=save, Esc=cancel", 275, 405, 10, GRAY);
     }
 }
 
@@ -1255,39 +1393,46 @@ void Gui::drawGraphicsPanel(CPU& cpu) {
     Rgb888Color pixel;
     Color color;
 
-    int panelX = 315;
-    int panelY = 430;
-    int panelW = 270;
-    int panelH = 195;
+    int panelX = 0;
+    int panelY = 0;
+    int panelW = graphicsWidth;
+    int panelH = graphicsHeight;
+    int availableW = panelW - 40;
+    int availableH = panelH - 80;
+    int pixelScaleX = availableW / GraphicsMemory::SCREEN_WIDTH;
+    int pixelScaleY = availableH / GraphicsMemory::SCREEN_HEIGHT;
+    int pixelScale = pixelScaleX < pixelScaleY ? pixelScaleX : pixelScaleY;
 
-    int previewScale = 2;
-    int previewW = GraphicsMemory::SCREEN_WIDTH / previewScale;
-    int previewH = GraphicsMemory::SCREEN_HEIGHT / previewScale;
+    if (pixelScale < 1) pixelScale = 1;
 
+    int previewW = GraphicsMemory::SCREEN_WIDTH * pixelScale;
+    int previewH = GraphicsMemory::SCREEN_HEIGHT * pixelScale;
     int previewX = panelX + (panelW - previewW) / 2;
-    int previewY = panelY + 58;
+    int previewY = panelY + 58 + (availableH - previewH) / 2;
 
     DrawRectangleLines(panelX, panelY, panelW, panelH, GREEN);
 
     DrawText("Graphics Output", panelX + 20, panelY + 14, 18, GREEN);
-    DrawText("Scaled 320x240 VRAM preview", panelX + 20, panelY + 38, 13, RAYWHITE);
+    DrawText("320x240 VRAM display", panelX + 20, panelY + 38, 13, RAYWHITE);
 
     DrawRectangle(previewX, previewY, previewW, previewH, BLACK);
     DrawRectangleLines(previewX, previewY, previewW, previewH, GRAY);
 
     color.a = 255;
 
-    for (int y = 0; y < previewH; y++) {
-        for (int x = 0; x < previewW; x++) {
-            int sourceX = x * previewScale;
-            int sourceY = y * previewScale;
-
+    for (int sourceY = 0; sourceY < GraphicsMemory::SCREEN_HEIGHT; sourceY++) {
+        for (int sourceX = 0; sourceX < GraphicsMemory::SCREEN_WIDTH; sourceX++) {
             if (graphics.renderScreenPixel(sourceX, sourceY, pixel)) {
                 color.r = pixel.red8;
                 color.g = pixel.green8;
                 color.b = pixel.blue8;
-
-                DrawPixel(previewX + x, previewY + y, color);
+                DrawRectangle(
+                    previewX + sourceX * pixelScale,
+                    previewY + sourceY * pixelScale,
+                    pixelScale,
+                    pixelScale,
+                    color
+                );
             }
         }
     }
@@ -1303,7 +1448,8 @@ bool Gui::drawButton(int x, int y, int w, int h, const char text[]) {
     button.width = (float)w;
     button.height = (float)h;
 
-    mouse = GetMousePosition();
+    mouse.x = (float)getUiMouseX();
+    mouse.y = (float)getUiMouseY();
     hover = CheckCollisionPointRec(mouse, button);
 
     if (hover) {
@@ -1335,7 +1481,21 @@ bool Gui::drawButton(int x, int y, int w, int h, const char text[]) {
 }
 
 unsigned short Gui::getMemoryViewerBaseAddress(unsigned short pc) {
-    return pc & 0xFFF0;
+    return pc & 0xFFF8;
+}
+
+unsigned short Gui::getDisassemblyBaseAddress(unsigned short pc) {
+    unsigned short alignedPc = pc & 0xFFFE;
+
+    if (alignedPc < 16) {
+        return 0;
+    }
+
+    if (alignedPc > 0xFFDC) {
+        return 0xFFDC;
+    }
+
+    return (unsigned short)(alignedPc - 16);
 }
 
 bool Gui::hasCursorAddress() {
@@ -1364,13 +1524,15 @@ void Gui::clearCursorAddress() {
 
 void Gui::resetDebugState() {
     clearCursorAddress();
+    clearSelectedRegister();
+    clearSelectedMemoryAddress();
 
     if (guiToneLoaded) {
         stopAudio();
     }
 }
 
-unsigned short Gui::getMemoryCursorAddressFromClick(
+unsigned short Gui::getDisassemblyAddressFromClick(
     int mouseX,
     int mouseY,
     unsigned short pc,
@@ -1378,55 +1540,31 @@ unsigned short Gui::getMemoryCursorAddressFromClick(
 ) {
     valid = false;
 
-    int memoryX = 895;
-    int memoryY = 155;
-    int rowHeight = 28;
-    int rowCount = 8;
+    int panelX = 500;
+    int firstRowY = 110;
+    int rowHeight = 23;
+    int rowCount = 11;
 
-    int byteStartX = memoryX + 68;
-    int byteWidth = 22;
-    int byteCount = 8;
-
-    if (mouseY < memoryY) {
+    if (mouseY < firstRowY) {
         return 0;
     }
 
-    if (mouseY >= memoryY + rowCount * rowHeight) {
+    if (mouseY >= firstRowY + rowCount * rowHeight) {
         return 0;
     }
 
-    int row = (mouseY - memoryY) / rowHeight;
-
-    if (mouseX < memoryX) {
+    if (mouseX < panelX || mouseX >= panelX + 280) {
         return 0;
     }
 
-    if (mouseX >= byteStartX + byteCount * byteWidth) {
-        return 0;
-    }
-
-    unsigned short baseAddress = getMemoryViewerBaseAddress(pc);
-    unsigned short rowAddress = baseAddress + row * 8;
-
-    if (mouseX < byteStartX) {
-        valid = true;
-        return rowAddress;
-    }
-
-    int byteColumn = (mouseX - byteStartX) / byteWidth;
-
-    if (byteColumn < 0 || byteColumn >= byteCount) {
-        return 0;
-    }
-
-    int instructionByteColumn = byteColumn & 0xFE;
-
+    int row = (mouseY - firstRowY) / rowHeight;
+    unsigned short baseAddress = getDisassemblyBaseAddress(pc);
     valid = true;
 
-    return rowAddress + instructionByteColumn;
+    return (unsigned short)(baseAddress + row * 2);
 }
 
-void Gui::updateMemoryCursorFromMouse(unsigned short pc) {
+void Gui::updateDisassemblyCursorFromMouse(unsigned short pc) {
     if (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT)) {
         return;
     }
@@ -1437,9 +1575,9 @@ void Gui::updateMemoryCursorFromMouse(unsigned short pc) {
 
     bool valid = false;
 
-    unsigned short selectedAddress = getMemoryCursorAddressFromClick(
-        GetMouseX(),
-        GetMouseY(),
+    unsigned short selectedAddress = getDisassemblyAddressFromClick(
+        getUiMouseX(),
+        getUiMouseY(),
         pc,
         valid
     );
@@ -1449,24 +1587,23 @@ void Gui::updateMemoryCursorFromMouse(unsigned short pc) {
     }
 }
 
-void Gui::updateBreakpointFromMouse(bool running, CPU& cpu) {
-    if (running) {
+void Gui::updateDisassemblyBreakpointFromMouse(bool running, CPU& cpu) {
+    bool shiftLeftClick =
+        (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT)) &&
+        IsMouseButtonPressed(MOUSE_LEFT_BUTTON);
+    bool rightClick = IsMouseButtonPressed(MOUSE_RIGHT_BUTTON);
+
+    if (!shiftLeftClick && !rightClick) {
         return;
     }
 
-    if (!IsKeyDown(KEY_LEFT_SHIFT) && !IsKeyDown(KEY_RIGHT_SHIFT)) {
-        return;
-    }
-
-    if (!IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
-        return;
-    }
+    (void)running;
 
     bool valid = false;
 
-    unsigned short address = getMemoryCursorAddressFromClick(
-        GetMouseX(),
-        GetMouseY(),
+    unsigned short address = getDisassemblyAddressFromClick(
+        getUiMouseX(),
+        getUiMouseY(),
         cpu.getPC(),
         valid
     );
@@ -1484,14 +1621,13 @@ unsigned short Gui::getMemoryByteAddressFromClick(
 ) {
     valid = false;
 
-    int memoryX = 895;
-    int memoryY = 155;
-    int rowHeight = 28;
-    int rowCount = 8;
+    int memoryY = 116;
+    int rowHeight = 22;
+    int rowCount = 10;
 
-    int byteStartX = memoryX + 68;
+    int byteStartX = 270 + 68;
     int byteWidth = 22;
-    int byteCount = 8;
+    int byteCount = 6;
 
     if (mouseY < memoryY) {
         return 0;
@@ -1520,8 +1656,8 @@ unsigned short Gui::getMemoryByteAddressFromClick(
         return 0;
     }
 
-    unsigned short baseAddress = getMemoryViewerBaseAddress(pc);
-    unsigned short selectedAddress = (unsigned short)(baseAddress + row * 8 + byteColumn);
+    unsigned short baseAddress = pc >= 30 ? (unsigned short)(pc - 30) : 0;
+    unsigned short selectedAddress = (unsigned short)(baseAddress + row * 6 + byteColumn);
 
     valid = true;
 
@@ -1549,8 +1685,8 @@ void Gui::updateMemoryEditorFromMouse(bool running, CPU& cpu) {
     bool valid = false;
 
     unsigned short address = getMemoryByteAddressFromClick(
-        GetMouseX(),
-        GetMouseY(),
+        getUiMouseX(),
+        getUiMouseY(),
         cpu.getPC(),
         valid
     );

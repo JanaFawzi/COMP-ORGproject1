@@ -2836,7 +2836,9 @@ void loadGuiDemoProgram(CPU& cpu) {
     SnakeRuntime::initialize(cpu);
 
     cpu.getMemory().write16(0x0020, makeSys(0x050));
-    cpu.getMemory().write16(0x0022, makeSys(0x3FF));
+    cpu.getMemory().write16(0x0022, makeI(1, 3, 0));
+    cpu.getMemory().write16(0x0024, makeI(2, 4, 0));
+    cpu.getMemory().write16(0x0026, makeSys(0x3FF));
 }
 
 void testFirstGraphicsDemoDrawsStaticImage() {
@@ -3189,6 +3191,7 @@ void testSnakeRuntimeDisplaysEmptyGameScreen() {
 
 void resetWholeSimulator(Gui& gui, CPU& cpu, bool& running, int& runDelay) {
     loadGuiDemoProgram(cpu);
+    cpu.clearBreakpoints();
 
     gui.resetDebugState();
 
@@ -3672,6 +3675,14 @@ void testBreakpointStopsExecution() {
     assert(cpu.getBreakpointCount() == 1);
     assert(cpu.hasBreakpoint(0x7002) == true);
 
+    assert(cpu.setBreakpoint(0x7004) == true);
+    assert(cpu.getBreakpointCount() == 1);
+    assert(cpu.hasBreakpoint(0x7002) == false);
+    assert(cpu.hasBreakpoint(0x7004) == true);
+    assert(cpu.setBreakpoint(0x7002) == true);
+    assert(cpu.hasBreakpoint(0x7004) == false);
+    assert(cpu.hasBreakpoint(0x7002) == true);
+
     assert(cpu.setBreakpoint(0x7002) == true);
     assert(cpu.getBreakpointCount() == 1);
 
@@ -3699,19 +3710,16 @@ void testBreakpointStopsExecution() {
     assert(cpu.getPC() == 0x7002);
     assert(cpu.getRegisters().getRegister(6) == 0x3830);
 
-    assert(cpu.clearBreakpoint(0x7002) == true);
-    assert(cpu.getBreakpointCount() == 0);
-    assert(cpu.hasBreakpoint(0x7002) == false);
-
-    cpu.clearBreakpointHit();
-
-    assert(cpu.hasBreakpointHit() == false);
-
     executed = cpu.stepWithBreakpoints();
 
     assert(executed == true);
+    assert(cpu.hasBreakpointHit() == false);
     assert(cpu.getPC() == 0x7004);
     assert(cpu.getRegisters().getRegister(6) == 0x0020);
+
+    assert(cpu.clearBreakpoint(0x7002) == true);
+    assert(cpu.getBreakpointCount() == 0);
+    assert(cpu.hasBreakpoint(0x7002) == false);
 
     assert(cpu.toggleBreakpoint(0x7004) == true);
     assert(cpu.hasBreakpoint(0x7004) == true);
@@ -3740,8 +3748,27 @@ void testCurrentPcHighlightMovesCorrectly() {
 
     assert(Gui::getMemoryViewerBaseAddress(0x0020) == 0x0020);
     assert(Gui::getMemoryViewerBaseAddress(0x0022) == 0x0020);
-    assert(Gui::getMemoryViewerBaseAddress(0x002E) == 0x0020);
+    assert(Gui::getMemoryViewerBaseAddress(0x002E) == 0x0028);
     assert(Gui::getMemoryViewerBaseAddress(0x0030) == 0x0030);
+
+    assert(Gui::getDisassemblyBaseAddress(0x0000) == 0x0000);
+    assert(Gui::getDisassemblyBaseAddress(0x0020) == 0x0010);
+    assert(Gui::getDisassemblyBaseAddress(0x7001) == 0x6FF0);
+    assert(Gui::getDisassemblyBaseAddress(0xFFFF) == 0xFFDC);
+
+    bool validAssemblyClick = false;
+    assert(Gui::getDisassemblyAddressFromClick(510, 110, 0x7000, validAssemblyClick) == 0x6FF0);
+    assert(validAssemblyClick == true);
+    assert(Gui::getDisassemblyAddressFromClick(510, 294, 0x7000, validAssemblyClick) == 0x7000);
+    assert(validAssemblyClick == true);
+    unsigned short clickedBreakpointAddress = Gui::getDisassemblyAddressFromClick(
+        510, 294, 0x7000, validAssemblyClick
+    );
+    assert(cpu.toggleBreakpoint(clickedBreakpointAddress) == true);
+    assert(cpu.hasBreakpoint(0x7000) == true);
+    assert(cpu.clearBreakpoint(0x7000) == true);
+    Gui::getDisassemblyAddressFromClick(480, 294, 0x7000, validAssemblyClick);
+    assert(validAssemblyClick == false);
 
     assert(Gui::isCurrentInstructionByte(0x7000, 0x7000) == true);
     assert(Gui::isCurrentInstructionByte(0x7001, 0x7000) == true);

@@ -127,6 +127,12 @@ bool CPU::stepWithBreakpoints() {
         return false;
     }
 
+    if (breakpointHit && breakpointHitAddress == pc) {
+        clearBreakpointHit();
+        step();
+        return true;
+    }
+
     if (hasBreakpointAtPC()) {
         breakpointHit = true;
         breakpointHitAddress = pc;

@@ -34,12 +34,9 @@ public:
             return true;
         }
 
-        if (count >= MAX_BREAKPOINTS) {
-            return false;
-        }
-
-        addresses[count] = address;
-        count++;
+        reset();
+        addresses[0] = address;
+        count = 1;
 
         return true;
     }

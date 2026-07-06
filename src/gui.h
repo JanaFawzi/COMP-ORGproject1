@@ -3,6 +3,16 @@
 
 class CPU;
 
+enum GuiViewMode {
+    GUI_VIEW_GRAPHICS_ONLY = 0,
+    GUI_VIEW_EXPANDED = 1
+};
+
+enum GuiDataPanel {
+    GUI_DATA_REGISTERS = 0,
+    GUI_DATA_RAM = 1
+};
+
 enum GuiAction {
     GUI_ACTION_NONE = 0,
     GUI_ACTION_RUN_PAUSE = 1,
@@ -26,6 +36,7 @@ public:
     static void buildConsoleVisibleText(const char consoleText[], char visibleText[], int visibleSize);
 
     static unsigned short getMemoryViewerBaseAddress(unsigned short pc);
+    static unsigned short getDisassemblyBaseAddress(unsigned short pc);
     static bool isCurrentInstructionByte(unsigned short address, unsigned short pc);
 
     static bool isValidRegisterEditIndex(int registerIndex);
@@ -45,7 +56,7 @@ public:
     
     void resetDebugState();
 
-    static unsigned short getMemoryCursorAddressFromClick(
+    static unsigned short getDisassemblyAddressFromClick(
         int mouseX,
         int mouseY,
         unsigned short pc,
@@ -53,6 +64,9 @@ public:
     );
 
     void open();
+
+    bool isExpanded();
+    void toggleViewMode();
 
     bool shouldClose();
 
@@ -85,11 +99,27 @@ public:
 private:
     int width;
     int height;
+    int graphicsWidth;
+    int graphicsHeight;
+    int expandedWidth;
+    int cpuPanelX;
+    float cpuScale;
+    int cpuOffsetY;
+    bool drawingCpuPanel;
+    bool statusPanelVisible;
+    GuiViewMode viewMode;
+    GuiDataPanel dataPanel;
 
     static const int TARGET_FPS = 60;
     static const int CONSOLE_VISIBLE_LINES = 5;
 
     void updateKeyboardFromRaylib(CPU& cpu);
+    void calculateLayout();
+    bool drawViewToggleButton();
+    void drawDataPanelTabs();
+    bool drawStatusToggleButton();
+    int getUiMouseX();
+    int getUiMouseY();
     
     void updateAudioFromCpu(CPU& cpu);
     bool playTone(unsigned short frequency, unsigned short durationMs);
@@ -97,8 +127,8 @@ private:
 
     unsigned short cursorAddress;
     bool cursorAddressSelected;
-    void updateMemoryCursorFromMouse(unsigned short pc);
-    void updateBreakpointFromMouse(bool running, CPU& cpu);
+    void updateDisassemblyCursorFromMouse(unsigned short pc);
+    void updateDisassemblyBreakpointFromMouse(bool running, CPU& cpu);
 
     static unsigned short getMemoryByteAddressFromClick(
         int mouseX,
@@ -149,10 +179,9 @@ private:
     void drawRegisterPanel(CPU& cpu, bool running);
 
     void drawMemoryPanel(CPU& cpu, bool running);
-    void drawMemoryLineWithHighlight(
+    void drawCompactMemoryLine(
         CPU& cpu,
         unsigned short address,
-        unsigned short pc,
         int x,
         int y
     );
@@ -161,7 +190,8 @@ private:
 
     bool drawButton(int x, int y, int w, int h, const char text[]);
 
-    void drawDisassemblyPanel(CPU& cpu);
+    void drawDisassemblyPanel(CPU& cpu, bool running);
+    void drawDisassemblyLine(CPU& cpu, unsigned short address, int x, int y);
 };
 
 #endif
