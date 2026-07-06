@@ -2915,6 +2915,96 @@ void testAudioDemoPlaysSoundWithKeyPress() {
     printf("[PASS] Audio demo plays sound with key press test passed\n");
 }
 
+void testAllEcallServicesTogether() {
+    CPU cpu;
+
+    unsigned short address = 0x7400;
+
+    cpu.setPC(address);
+
+    cpu.getMemory().write16(address + 0, makeSys(0x000));
+    cpu.getMemory().write16(address + 2, makeSys(0x001));
+    cpu.getMemory().write16(address + 4, makeSys(0x010));
+    cpu.getMemory().write16(address + 6, makeSys(0x011));
+    cpu.getMemory().write16(address + 8, makeSys(0x012));
+    cpu.getMemory().write16(address + 10, makeSys(0x020));
+    cpu.getMemory().write16(address + 12, makeSys(0x021));
+    cpu.getMemory().write16(address + 14, makeSys(0x030));
+    cpu.getMemory().write16(address + 16, makeSys(0x040));
+    cpu.getMemory().write16(address + 18, makeSys(0x041));
+    cpu.getMemory().write16(address + 20, makeSys(0x042));
+    cpu.getMemory().write16(address + 22, makeSys(0x050));
+    cpu.getMemory().write16(address + 24, makeSys(0x051));
+    cpu.getMemory().write16(address + 26, makeSys(0x3FF));
+
+    cpu.getRegisters().setRegister(6, (unsigned short)-7);
+    cpu.step();
+    assert(strcmp(cpu.getOutput(), "-7") == 0);
+
+    cpu.getRegisters().setRegister(6, ' ');
+    cpu.step();
+    assert(strcmp(cpu.getOutput(), "-7 ") == 0);
+
+    cpu.setInput("ZX16\n");
+    cpu.getRegisters().setRegister(6, 0x6000);
+    cpu.getRegisters().setRegister(7, 16);
+    cpu.step();
+    assert(cpu.getMemory().read8(0x6000) == 'Z');
+    assert(cpu.getMemory().read8(0x6001) == 'X');
+    assert(cpu.getMemory().read8(0x6002) == '1');
+    assert(cpu.getMemory().read8(0x6003) == '6');
+    assert(cpu.getMemory().read8(0x6004) == 0);
+
+    cpu.setInput("42");
+    cpu.step();
+    assert(cpu.getRegisters().getRegister(6) == 42);
+
+    cpu.getRegisters().setRegister(6, 0x6000);
+    cpu.step();
+    assert(strcmp(cpu.getOutput(), "-7 ZX16") == 0);
+
+    cpu.getRegisters().setRegister(6, 0x1234);
+    cpu.step();
+    assert(cpu.getRngState() == 0x1234);
+
+    cpu.step();
+    assert(cpu.getRegisters().getRegister(6) == 0x3830);
+
+    cpu.setKeyboardKey(CPU::ZX16_KEY_RIGHT);
+    cpu.step();
+    assert(cpu.getRegisters().getRegister(6) == CPU::ZX16_KEY_RIGHT);
+
+    cpu.getRegisters().setRegister(6, 440);
+    cpu.getRegisters().setRegister(7, 200);
+    cpu.step();
+    assert(cpu.hasPendingTone() == true);
+    assert(cpu.getToneFrequency() == 440);
+    assert(cpu.getToneDurationMs() == 200);
+
+    cpu.getRegisters().setRegister(6, 25);
+    cpu.step();
+    assert(cpu.getVolumePercent() == 25);
+
+    cpu.step();
+    assert(cpu.hasPendingTone() == false);
+    assert(cpu.hasPendingStopAudio() == true);
+
+    cpu.step();
+    assert(strstr(cpu.getOutput(), "REGS\n") != 0);
+
+    cpu.getRegisters().setRegister(6, 0x6000);
+    cpu.getRegisters().setRegister(7, 5);
+    cpu.step();
+    assert(strstr(cpu.getOutput(), "MEM\n") != 0);
+    assert(strstr(cpu.getOutput(), "5A 58 31 36 00") != 0);
+
+    cpu.step();
+    assert(cpu.isHalted() == true);
+    assert(cpu.getPC() == address + 28);
+
+    printf("[PASS] All ECALL services integration test passed\n");
+}
+
 void resetWholeSimulator(Gui& gui, CPU& cpu, bool& running, int& runDelay) {
     loadGuiDemoProgram(cpu);
 
@@ -3588,6 +3678,7 @@ int main() {
 
     testEcallRegsDumpExecution();
     testEcallMemDumpExecution();
+    testAllEcallServicesTogether();
 
     testConsoleUpdatesCorrectly();
     testBreakpointStopsExecution();
