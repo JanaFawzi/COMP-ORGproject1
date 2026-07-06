@@ -3053,6 +3053,33 @@ void testGraphicsContinuousRenderingStress() {
     printf("[PASS] Graphics continuous rendering stress test passed\n");
 }
 
+void testCpuLongRunningProgram() {
+    CPU cpu;
+
+    unsigned short startAddress = 0x7600;
+
+    cpu.setPC(startAddress);
+    cpu.getRegisters().setRegister(3, 30000);
+
+    cpu.getMemory().write16(startAddress + 0, makeI(-1, 3, 0));
+    cpu.getMemory().write16(startAddress + 2, makeB(0xE, 0, 3, 3));
+    cpu.getMemory().write16(startAddress + 4, makeSys(0x3FF));
+
+    int instructionCount = 0;
+
+    while (!cpu.isHalted() && instructionCount < 70000) {
+        cpu.step();
+        instructionCount++;
+    }
+
+    assert(cpu.isHalted() == true);
+    assert(cpu.getRegisters().getRegister(3) == 0);
+    assert(cpu.getPC() == startAddress + 6);
+    assert(instructionCount == 60001);
+
+    printf("[PASS] CPU long-running program stress test passed\n");
+}
+
 void resetWholeSimulator(Gui& gui, CPU& cpu, bool& running, int& runDelay) {
     loadGuiDemoProgram(cpu);
 
@@ -3739,6 +3766,7 @@ int main() {
     testSequentialPC();
     testInstructionFields();
     testExecutionDispatcher();
+    testCpuLongRunningProgram();
 
     testAddSubExecution();
     testLogicalExecution();
