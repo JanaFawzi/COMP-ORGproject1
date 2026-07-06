@@ -3005,6 +3005,54 @@ void testAllEcallServicesTogether() {
     printf("[PASS] All ECALL services integration test passed\n");
 }
 
+void testGraphicsContinuousRenderingStress() {
+    Memory memory;
+    GraphicsMemory graphics(memory);
+
+    static Rgb888Color pixels[GraphicsMemory::SCREEN_PIXEL_COUNT];
+
+    graphics.writePaletteColor(1, 0xE0);
+    graphics.writePaletteColor(2, 0x1C);
+
+    graphics.clearTileDefinition(0, 1);
+    graphics.clearTileDefinition(1, 2);
+
+    for (int frame = 0; frame < 120; frame++) {
+        int tileIndex = frame % 2;
+
+        if ((frame % 4) < 2) {
+            graphics.writePaletteColor(1, 0xE0);
+        }
+        else {
+            graphics.writePaletteColor(1, 0x03);
+        }
+
+        assert(graphics.fillTileMap((unsigned char)tileIndex) == true);
+        assert(graphics.renderScreen(pixels, GraphicsMemory::SCREEN_PIXEL_COUNT) == true);
+
+        int centerPixel = GraphicsMemory::getScreenPixelNumber(160, 120);
+        int lastPixel = GraphicsMemory::SCREEN_PIXEL_COUNT - 1;
+
+        if (tileIndex == 1) {
+            assertRgbColor(pixels[0], 0x00, 0xFF, 0x00);
+            assertRgbColor(pixels[centerPixel], 0x00, 0xFF, 0x00);
+            assertRgbColor(pixels[lastPixel], 0x00, 0xFF, 0x00);
+        }
+        else if ((frame % 4) < 2) {
+            assertRgbColor(pixels[0], 0xFF, 0x00, 0x00);
+            assertRgbColor(pixels[centerPixel], 0xFF, 0x00, 0x00);
+            assertRgbColor(pixels[lastPixel], 0xFF, 0x00, 0x00);
+        }
+        else {
+            assertRgbColor(pixels[0], 0x00, 0x00, 0xFF);
+            assertRgbColor(pixels[centerPixel], 0x00, 0x00, 0xFF);
+            assertRgbColor(pixels[lastPixel], 0x00, 0x00, 0xFF);
+        }
+    }
+
+    printf("[PASS] Graphics continuous rendering stress test passed\n");
+}
+
 void resetWholeSimulator(Gui& gui, CPU& cpu, bool& running, int& runDelay) {
     loadGuiDemoProgram(cpu);
 
@@ -3657,6 +3705,7 @@ int main() {
     testRendererLiveUpdate();
     testRendererConnectedToVram();
     testFrameTimingStableRefresh();
+    testGraphicsContinuousRenderingStress();
     testFirstGraphicsDemoDrawsStaticImage();
     testKeyboardDemoMovesObject();
     testAudioDemoPlaysSoundWithKeyPress();
