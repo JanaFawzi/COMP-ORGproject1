@@ -1159,8 +1159,14 @@ void Gui::drawMemoryLineWithHighlight(CPU& cpu, unsigned short address, unsigned
 
         sprintf(byteText, "%02X", value);
 
+        unsigned short instructionAddress = byteAddress & 0xFFFE;
+
         if (memoryAddressSelected && byteAddress == selectedMemoryAddress) {
             DrawRectangle(byteX - 3, y - 2, 19, 17, MAROON);
+            DrawText(byteText, byteX, y, 13, YELLOW);
+        }
+        else if (cpu.hasBreakpoint(instructionAddress)) {
+            DrawRectangle(byteX - 3, y - 2, 19, 17, RED);
             DrawText(byteText, byteX, y, 13, YELLOW);
         }
         else if (isCurrentInstructionByte(byteAddress, pc)) {
@@ -1182,10 +1188,10 @@ void Gui::drawMemoryLineWithHighlight(CPU& cpu, unsigned short address, unsigned
 void Gui::drawMemoryPanel(CPU& cpu, bool running) {
     unsigned short baseAddress = getMemoryViewerBaseAddress(cpu.getPC());
 
-    if (running) {
-        updateMemoryCursorFromMouse(cpu.getPC());
-    }
-    else {
+    updateBreakpointFromMouse(running, cpu);
+    updateMemoryCursorFromMouse(cpu.getPC());
+
+    if (!running) {
         updateMemoryEditorFromMouse(running, cpu);
     }
 
@@ -1197,7 +1203,7 @@ void Gui::drawMemoryPanel(CPU& cpu, bool running) {
 
     DrawText("RAM around PC", 895, 115, 14, RAYWHITE);
     DrawText("Yellow = current instruction", 895, 132, 11, YELLOW);
-    DrawText("Blue = run cursor", 895, 145, 11, SKYBLUE);
+    DrawText("Blue = cursor  Red = breakpoint", 895, 145, 11, SKYBLUE);
 
     for (int row = 0; row < 8; row++) {
         unsigned short rowAddress = baseAddress + row * 8;
@@ -1211,7 +1217,7 @@ void Gui::drawMemoryPanel(CPU& cpu, bool running) {
         );
     }
 
-    DrawText("Paused edit: click byte", 895, 405, 11, RAYWHITE);
+    DrawText("Shift+left=breakpoint  Right-click=edit", 895, 405, 11, RAYWHITE);
     DrawText("2 hex=byte, 4 hex=word", 895, 420, 11, RAYWHITE);
     DrawText("Enter=save, Esc=cancel", 895, 435, 11, RAYWHITE);
 
@@ -1421,6 +1427,10 @@ unsigned short Gui::getMemoryCursorAddressFromClick(
 }
 
 void Gui::updateMemoryCursorFromMouse(unsigned short pc) {
+    if (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT)) {
+        return;
+    }
+
     if (!IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
         return;
     }
@@ -1436,6 +1446,33 @@ void Gui::updateMemoryCursorFromMouse(unsigned short pc) {
 
     if (valid) {
         setCursorAddress(selectedAddress);
+    }
+}
+
+void Gui::updateBreakpointFromMouse(bool running, CPU& cpu) {
+    if (running) {
+        return;
+    }
+
+    if (!IsKeyDown(KEY_LEFT_SHIFT) && !IsKeyDown(KEY_RIGHT_SHIFT)) {
+        return;
+    }
+
+    if (!IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+        return;
+    }
+
+    bool valid = false;
+
+    unsigned short address = getMemoryCursorAddressFromClick(
+        GetMouseX(),
+        GetMouseY(),
+        cpu.getPC(),
+        valid
+    );
+
+    if (valid) {
+        cpu.toggleBreakpoint(address);
     }
 }
 
@@ -1505,7 +1542,7 @@ void Gui::updateMemoryEditorFromMouse(bool running, CPU& cpu) {
         return;
     }
 
-    if (!IsMouseButtonPressed(MOUSE_LEFT_BUTTON)) {
+    if (!IsMouseButtonPressed(MOUSE_RIGHT_BUTTON)) {
         return;
     }
 

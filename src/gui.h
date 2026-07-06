@@ -98,6 +98,7 @@ private:
     unsigned short cursorAddress;
     bool cursorAddressSelected;
     void updateMemoryCursorFromMouse(unsigned short pc);
+    void updateBreakpointFromMouse(bool running, CPU& cpu);
 
     static unsigned short getMemoryByteAddressFromClick(
         int mouseX,

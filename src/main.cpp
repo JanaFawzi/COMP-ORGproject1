@@ -2672,94 +2672,103 @@ void testEcallHaltExecution() {
     printf("[PASS] ECALL halt test passed\n");
 }
 
-void loadGuiDemoProgram(CPU& cpu) {
+void loadFirstGraphicsDemo(CPU& cpu) {
     cpu.reset();
 
-    cpu.getMemory().write8(0xFA00, 0x00); // 0: black
-    cpu.getMemory().write8(0xFA01, 0xE0); // 1: red
-    cpu.getMemory().write8(0xFA02, 0x1C); // 2: green
-    cpu.getMemory().write8(0xFA03, 0x03); // 3: blue
-    cpu.getMemory().write8(0xFA04, 0xFF); // 4: white
-    cpu.getMemory().write8(0xFA05, 0xFC); // 5: yellow-ish
-    cpu.getMemory().write8(0xFA06, 0x1F); // 6: cyan-ish
-    cpu.getMemory().write8(0xFA07, 0xE3); // 7: magenta-ish
+    GraphicsMemory graphics(cpu.getMemory());
 
-    unsigned short tile0Base = 0xF200;
+    graphics.writePaletteColor(0, 0x00); // Black
+    graphics.writePaletteColor(1, 0xE0); // Red
+    graphics.writePaletteColor(2, 0x1C); // Green
+    graphics.writePaletteColor(3, 0x03); // Blue
+    graphics.writePaletteColor(4, 0xFF); // White
+    graphics.writePaletteColor(5, 0xFC); // Yellow
+    graphics.writePaletteColor(6, 0x1F); // Cyan
+    graphics.writePaletteColor(7, 0x80); // Dark red
 
-    for (int y = 0; y < 16; y++) {
-        for (int xByte = 0; xByte < 8; xByte++) {
-            int leftX = xByte * 2;
-            int rightX = leftX + 1;
+    graphics.clearTileDefinition(0, 3); // Sky
+    graphics.clearTileDefinition(1, 2); // Grass
+    graphics.clearTileDefinition(2, 3); // Sun tile background
+    graphics.clearTileDefinition(3, 1); // House wall
+    graphics.clearTileDefinition(4, 7); // House roof
+    graphics.clearTileDefinition(5, 1); // Door tile background
+    graphics.clearTileDefinition(6, 1); // Window tile background
 
-            unsigned char leftColor;
-            unsigned char rightColor;
-
-            if (((leftX / 4) + (y / 4)) % 2 == 0) {
-                leftColor = 1;
-            }
-            else {
-                leftColor = 4;
-            }
-
-            if (((rightX / 4) + (y / 4)) % 2 == 0) {
-                rightColor = 1;
-            }
-            else {
-                rightColor = 4;
-            }
-
-            unsigned char packed = (leftColor << 4) | rightColor;
-
-            cpu.getMemory().write8(tile0Base + y * 8 + xByte, packed);
+    for (int y = 4; y <= 11; y++) {
+        for (int x = 4; x <= 11; x++) {
+            graphics.writeTilePixel(2, x, y, 5);
         }
     }
 
-    unsigned short tile1Base = 0xF200 + 128;
-
-    for (int y = 0; y < 16; y++) {
-        for (int xByte = 0; xByte < 8; xByte++) {
-            int leftX = xByte * 2;
-            int rightX = leftX + 1;
-
-            unsigned char leftColor;
-            unsigned char rightColor;
-
-            if (((leftX / 4) + (y / 4)) % 2 == 0) {
-                leftColor = 2;
-            }
-            else {
-                leftColor = 3;
-            }
-
-            if (((rightX / 4) + (y / 4)) % 2 == 0) {
-                rightColor = 2;
-            }
-            else {
-                rightColor = 3;
-            }
-
-            unsigned char packed = (leftColor << 4) | rightColor;
-
-            cpu.getMemory().write8(tile1Base + y * 8 + xByte, packed);
+    for (int y = 4; y < 16; y++) {
+        for (int x = 5; x <= 10; x++) {
+            graphics.writeTilePixel(5, x, y, 0);
         }
     }
 
-
-    for (int row = 0; row < 15; row++) {
-        for (int col = 0; col < 20; col++) {
-            unsigned short address = 0xF000 + row * 20 + col;
-
-            if ((row + col) % 2 == 0) {
-                cpu.getMemory().write8(address, 0);
-            }
-            else {
-                cpu.getMemory().write8(address, 1);
-            }
+    for (int y = 4; y <= 11; y++) {
+        for (int x = 4; x <= 11; x++) {
+            graphics.writeTilePixel(6, x, y, 4);
         }
     }
+
+    graphics.fillTileMap(0);
+
+    for (int row = 10; row < GraphicsMemory::TILE_ROWS; row++) {
+        for (int col = 0; col < GraphicsMemory::TILE_COLUMNS; col++) {
+            graphics.writeTileIndex(col, row, 1);
+        }
+    }
+
+    graphics.writeTileIndex(16, 1, 2);
+
+    for (int col = 8; col <= 11; col++) {
+        graphics.writeTileIndex(col, 8, 4);
+    }
+
+    for (int row = 9; row <= 12; row++) {
+        for (int col = 8; col <= 11; col++) {
+            graphics.writeTileIndex(col, row, 3);
+        }
+    }
+
+    graphics.writeTileIndex(8, 10, 6);
+    graphics.writeTileIndex(11, 10, 6);
+    graphics.writeTileIndex(9, 12, 5);
+}
+
+void loadGuiDemoProgram(CPU& cpu) {
+    loadFirstGraphicsDemo(cpu);
 
     cpu.getMemory().write16(0x0020, makeSys(0x050));
     cpu.getMemory().write16(0x0022, makeSys(0x3FF));
+}
+
+void testFirstGraphicsDemoDrawsStaticImage() {
+    CPU cpu;
+
+    loadFirstGraphicsDemo(cpu);
+
+    GraphicsMemory graphics(cpu.getMemory());
+    Rgb888Color color;
+
+    assert(graphics.readTileIndex(0, 0) == 0);
+    assert(graphics.readTileIndex(0, 14) == 1);
+    assert(graphics.readTileIndex(16, 1) == 2);
+    assert(graphics.readTileIndex(8, 8) == 4);
+    assert(graphics.readTileIndex(8, 10) == 6);
+    assert(graphics.readTileIndex(9, 12) == 5);
+
+    assert(graphics.renderScreenPixel(0, 0, color) == true);
+    assertRgbColor(color, 0x00, 0x00, 0xFF);
+
+    assert(graphics.renderScreenPixel(0, 239, color) == true);
+    assertRgbColor(color, 0x00, 0xFF, 0x00);
+
+    assert(graphics.renderScreenPixel(16 * 16 + 8, 16 + 8, color) == true);
+    assertRgbColor(color, 0xFF, 0xFF, 0x00);
+
+    printf("[PASS] First graphics demo draws static image test passed\n");
 }
 
 void resetWholeSimulator(Gui& gui, CPU& cpu, bool& running, int& runDelay) {
@@ -2771,26 +2780,45 @@ void resetWholeSimulator(Gui& gui, CPU& cpu, bool& running, int& runDelay) {
     runDelay = 0;
 }
 
-void handleGuiAction(Gui& gui, CPU& cpu, GuiAction action, bool& running, int& runDelay) {
+void handleGuiAction(
+    Gui& gui,
+    CPU& cpu,
+    GuiAction action,
+    bool& running,
+    bool& runToCursorActive,
+    int& runDelay
+) {
     if (action == GUI_ACTION_RUN_PAUSE) {
         if (!cpu.isHalted()) {
             running = !running;
+            runToCursorActive = false;
         }
     }
 
     if (action == GUI_ACTION_STEP) {
         if (!running && !cpu.isHalted()) {
             cpu.step();
+            runToCursorActive = false;
+        }
+    }
+
+    if (action == GUI_ACTION_RUN_TO_CURSOR) {
+        if (!cpu.isHalted() && gui.hasCursorAddress()) {
+            running = cpu.getPC() != gui.getCursorAddress();
+            runToCursorActive = running;
+            runDelay = 0;
         }
     }
 
     if (action == GUI_ACTION_RESET) {
         resetWholeSimulator(gui, cpu, running, runDelay);
+        runToCursorActive = false;
         return;
     }
 
     if (cpu.isHalted()) {
         running = false;
+        runToCursorActive = false;
     }
 }
 
@@ -2902,6 +2930,7 @@ void testGuiStepExecutesOneInstruction() {
     Gui gui;
 
     bool running = false;
+    bool runToCursorActive = false;
     int runDelay = 0;
 
     cpu.reset();
@@ -2914,13 +2943,13 @@ void testGuiStepExecutesOneInstruction() {
     assert(cpu.getRegisters().getRegister(6) == 0x0000);
     assert(cpu.getRegisters().getRegister(7) == 0x0000);
 
-    handleGuiAction(gui, cpu, GUI_ACTION_STEP, running, runDelay);
+    handleGuiAction(gui, cpu, GUI_ACTION_STEP, running, runToCursorActive, runDelay);
 
     assert(cpu.getPC() == 0x0022);
     assert(cpu.getRegisters().getRegister(6) == 5);
     assert(cpu.getRegisters().getRegister(7) == 0x0000);
 
-    handleGuiAction(gui, cpu, GUI_ACTION_STEP, running, runDelay);
+    handleGuiAction(gui, cpu, GUI_ACTION_STEP, running, runToCursorActive, runDelay);
 
     assert(cpu.getPC() == 0x0024);
     assert(cpu.getRegisters().getRegister(6) == 5);
@@ -3394,6 +3423,7 @@ int main() {
     testRendererLiveUpdate();
     testRendererConnectedToVram();
     testFrameTimingStableRefresh();
+    testFirstGraphicsDemoDrawsStaticImage();
 
     testEcallPrintStringExecution();
     testEcallReadIntExecution();
@@ -3454,8 +3484,8 @@ int main() {
     testCurrentInstructionDisplayed();
     testStepOverSkipsFunctionBody();
 
-    
-    
+
+
     CPU guiCpu;
     loadGuiDemoProgram(guiCpu);
 
@@ -3463,6 +3493,7 @@ int main() {
     gui.open();
 
     bool running = false;
+    bool runToCursorActive = false;
     int frameNumber = 0;
     int runDelay = 0;
 
@@ -3477,17 +3508,31 @@ int main() {
             guiCpu
         );
 
-        handleGuiAction(gui, guiCpu, action, running, runDelay);
+        handleGuiAction(
+    gui,
+    guiCpu,
+    action,
+    running,
+    runToCursorActive,
+    runDelay
+);
 
         if (running && !guiCpu.isHalted()) {
             runDelay++;
 
             if (runDelay >= 30) {
                 bool executed = guiCpu.stepWithBreakpoints();
+                if (runToCursorActive && guiCpu.getPC() == gui.getCursorAddress()) {
+                    running = false;
+                    runToCursorActive = false;
+                }
 
                 if (!executed && guiCpu.hasBreakpointHit()) {
                     running = false;
+                    runToCursorActive = false;
                 }
+
+
 
                 runDelay = 0;
             }
@@ -3495,6 +3540,7 @@ int main() {
 
         if (guiCpu.isHalted()) {
             running = false;
+            runToCursorActive = false;
         }
     }
 
