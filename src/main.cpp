@@ -2823,6 +2823,14 @@ bool updateKeyboardDemo(CPU& cpu) {
     return true;
 }
 
+bool updateAudioDemo(CPU& cpu) {
+    if (cpu.getKeyboardKey() != CPU::ZX16_KEY_SPACE) {
+        return false;
+    }
+
+    return cpu.requestTone(440, 200);
+}
+
 void loadGuiDemoProgram(CPU& cpu) {
     loadKeyboardDemo(cpu);
 
@@ -2886,6 +2894,25 @@ void testKeyboardDemoMovesObject() {
     assert(updateKeyboardDemo(cpu) == false);
 
     printf("[PASS] Keyboard demo moves object test passed\n");
+}
+
+void testAudioDemoPlaysSoundWithKeyPress() {
+    CPU cpu;
+
+    cpu.setKeyboardKey(CPU::ZX16_KEY_SPACE);
+
+    assert(updateAudioDemo(cpu) == true);
+    assert(cpu.hasPendingTone() == true);
+    assert(cpu.getToneFrequency() == 440);
+    assert(cpu.getToneDurationMs() == 200);
+
+    cpu.clearToneRequest();
+    cpu.setKeyboardKey(CPU::ZX16_KEY_LEFT);
+
+    assert(updateAudioDemo(cpu) == false);
+    assert(cpu.hasPendingTone() == false);
+
+    printf("[PASS] Audio demo plays sound with key press test passed\n");
 }
 
 void resetWholeSimulator(Gui& gui, CPU& cpu, bool& running, int& runDelay) {
@@ -3542,6 +3569,7 @@ int main() {
     testFrameTimingStableRefresh();
     testFirstGraphicsDemoDrawsStaticImage();
     testKeyboardDemoMovesObject();
+    testAudioDemoPlaysSoundWithKeyPress();
 
     testEcallPrintStringExecution();
     testEcallReadIntExecution();
@@ -3615,6 +3643,7 @@ int main() {
     int frameNumber = 0;
     int runDelay = 0;
     int keyboardMoveDelay = 0;
+    unsigned short lastAudioDemoKey = CPU::ZX16_KEY_NONE;
 
     while (!gui.shouldClose()) {
         frameNumber++;
@@ -3635,6 +3664,14 @@ int main() {
     runToCursorActive,
             runDelay
         );
+
+        unsigned short currentAudioDemoKey = guiCpu.getKeyboardKey();
+
+        if (currentAudioDemoKey == CPU::ZX16_KEY_SPACE && lastAudioDemoKey != CPU::ZX16_KEY_SPACE) {
+            updateAudioDemo(guiCpu);
+        }
+
+        lastAudioDemoKey = currentAudioDemoKey;
 
         if (guiCpu.getKeyboardKey() == CPU::ZX16_KEY_NONE) {
             keyboardMoveDelay = 0;
