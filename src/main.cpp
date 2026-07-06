@@ -2737,8 +2737,94 @@ void loadFirstGraphicsDemo(CPU& cpu) {
     graphics.writeTileIndex(9, 12, 5);
 }
 
-void loadGuiDemoProgram(CPU& cpu) {
+int getKeyboardDemoBackgroundTile(int row) {
+    if (row >= 10) {
+        return 1;
+    }
+
+    return 0;
+}
+
+static int keyboardDemoObjectCol = 2;
+static int keyboardDemoObjectRow = 12;
+
+void drawKeyboardDemoObject(CPU& cpu, int col, int row) {
+    GraphicsMemory graphics(cpu.getMemory());
+
+    int tileIndex = 8;
+
+    if (row >= 10) {
+        tileIndex = 9;
+    }
+
+    graphics.writeTileIndex(col, row, (unsigned char)tileIndex);
+}
+
+void loadKeyboardDemo(CPU& cpu) {
     loadFirstGraphicsDemo(cpu);
+
+    GraphicsMemory graphics(cpu.getMemory());
+
+    graphics.clearTileDefinition(8, 3);
+    graphics.clearTileDefinition(9, 2);
+
+    for (int y = 4; y <= 11; y++) {
+        for (int x = 4; x <= 11; x++) {
+            graphics.writeTilePixel(8, x, y, 4);
+            graphics.writeTilePixel(9, x, y, 4);
+        }
+    }
+
+    keyboardDemoObjectCol = 2;
+    keyboardDemoObjectRow = 12;
+
+    drawKeyboardDemoObject(cpu, keyboardDemoObjectCol, keyboardDemoObjectRow);
+}
+
+bool updateKeyboardDemo(CPU& cpu) {
+    int oldCol = keyboardDemoObjectCol;
+    int oldRow = keyboardDemoObjectRow;
+
+    int newCol = oldCol;
+    int newRow = oldRow;
+
+    unsigned short key = cpu.getKeyboardKey();
+
+    if (key == CPU::ZX16_KEY_LEFT && newCol > 0) {
+        newCol--;
+    }
+
+    if (key == CPU::ZX16_KEY_RIGHT && newCol < 6) {
+        newCol++;
+    }
+
+    if (key == CPU::ZX16_KEY_UP && newRow > 0) {
+        newRow--;
+    }
+
+    if (key == CPU::ZX16_KEY_DOWN && newRow < GraphicsMemory::TILE_ROWS - 1) {
+        newRow++;
+    }
+
+    if (newCol == oldCol && newRow == oldRow) {
+        return false;
+    }
+
+    GraphicsMemory graphics(cpu.getMemory());
+
+    int backgroundTile = getKeyboardDemoBackgroundTile(oldRow);
+    graphics.writeTileIndex(oldCol, oldRow, (unsigned char)backgroundTile);
+
+    keyboardDemoObjectCol = newCol;
+    keyboardDemoObjectRow = newRow;
+
+    drawKeyboardDemoObject(cpu, newCol, newRow);
+
+    return true;
+}
+
+void loadGuiDemoProgram(CPU& cpu) {
+    loadKeyboardDemo(cpu);
 
     cpu.getMemory().write16(0x0020, makeSys(0x050));
     cpu.getMemory().write16(0x0022, makeSys(0x3FF));
@@ -2769,6 +2855,37 @@ void testFirstGraphicsDemoDrawsStaticImage() {
     assertRgbColor(color, 0xFF, 0xFF, 0x00);
 
     printf("[PASS] First graphics demo draws static image test passed\n");
+}
+
+void testKeyboardDemoMovesObject() {
+    CPU cpu;
+
+    loadKeyboardDemo(cpu);
+
+    GraphicsMemory graphics(cpu.getMemory());
+
+    assert(graphics.readTileIndex(2, 12) == 9);
+
+    cpu.setKeyboardKey(CPU::ZX16_KEY_RIGHT);
+    assert(updateKeyboardDemo(cpu) == true);
+
+    assert(keyboardDemoObjectCol == 3);
+    assert(keyboardDemoObjectRow == 12);
+    assert(graphics.readTileIndex(2, 12) == 1);
+    assert(graphics.readTileIndex(3, 12) == 9);
+
+    cpu.setKeyboardKey(CPU::ZX16_KEY_UP);
+    assert(updateKeyboardDemo(cpu) == true);
+
+    assert(keyboardDemoObjectCol == 3);
+    assert(keyboardDemoObjectRow == 11);
+    assert(graphics.readTileIndex(3, 12) == 1);
+    assert(graphics.readTileIndex(3, 11) == 9);
+
+    cpu.clearKeyboardKey();
+    assert(updateKeyboardDemo(cpu) == false);
+
+    printf("[PASS] Keyboard demo moves object test passed\n");
 }
 
 void resetWholeSimulator(Gui& gui, CPU& cpu, bool& running, int& runDelay) {
@@ -3424,6 +3541,7 @@ int main() {
     testRendererConnectedToVram();
     testFrameTimingStableRefresh();
     testFirstGraphicsDemoDrawsStaticImage();
+    testKeyboardDemoMovesObject();
 
     testEcallPrintStringExecution();
     testEcallReadIntExecution();
@@ -3496,6 +3614,7 @@ int main() {
     bool runToCursorActive = false;
     int frameNumber = 0;
     int runDelay = 0;
+    int keyboardMoveDelay = 0;
 
     while (!gui.shouldClose()) {
         frameNumber++;
@@ -3514,8 +3633,20 @@ int main() {
     action,
     running,
     runToCursorActive,
-    runDelay
-);
+            runDelay
+        );
+
+        if (guiCpu.getKeyboardKey() == CPU::ZX16_KEY_NONE) {
+            keyboardMoveDelay = 0;
+        }
+        else {
+            keyboardMoveDelay++;
+
+            if (keyboardMoveDelay >= 6) {
+                updateKeyboardDemo(guiCpu);
+                keyboardMoveDelay = 0;
+            }
+        }
 
         if (running && !guiCpu.isHalted()) {
             runDelay++;
