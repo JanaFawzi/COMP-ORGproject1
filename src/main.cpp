@@ -6,6 +6,7 @@
 #include "instruction_decoder.h"
 #include "gui.h"
 #include "graphics_memory.h"
+#include "snake_runtime.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -2832,7 +2833,7 @@ bool updateAudioDemo(CPU& cpu) {
 }
 
 void loadGuiDemoProgram(CPU& cpu) {
-    loadKeyboardDemo(cpu);
+    SnakeRuntime::initialize(cpu);
 
     cpu.getMemory().write16(0x0020, makeSys(0x050));
     cpu.getMemory().write16(0x0022, makeSys(0x3FF));
@@ -3087,10 +3088,6 @@ void testDemoIntegrationRegression() {
 
     GraphicsMemory graphics(cpu.getMemory());
 
-    cpu.setKeyboardKey(CPU::ZX16_KEY_RIGHT);
-    assert(updateKeyboardDemo(cpu) == true);
-    assert(graphics.readTileIndex(3, 12) == 9);
-
     cpu.setKeyboardKey(CPU::ZX16_KEY_SPACE);
     assert(updateAudioDemo(cpu) == true);
     assert(cpu.hasPendingTone() == true);
@@ -3098,14 +3095,17 @@ void testDemoIntegrationRegression() {
     cpu.setBreakpoint(0x0020);
     assert(cpu.getBreakpointCount() == 1);
 
+    graphics.writeTileIndex(0, 0, SnakeRuntime::EMPTY_TILE);
+    graphics.writeTileIndex(5, 5, SnakeRuntime::FOOD_TILE);
+
     loadGuiDemoProgram(cpu);
 
     assert(cpu.getPC() == 0x0020);
     assert(cpu.getKeyboardKey() == CPU::ZX16_KEY_NONE);
     assert(cpu.hasPendingTone() == false);
     assert(cpu.getBreakpointCount() == 0);
-    assert(graphics.readTileIndex(2, 12) == 9);
-    assert(graphics.readTileIndex(3, 12) == 1);
+    assert(graphics.readTileIndex(0, 0) == SnakeRuntime::WALL_TILE);
+    assert(graphics.readTileIndex(5, 5) == SnakeRuntime::EMPTY_TILE);
 
     printf("[PASS] Demo integration regression test passed\n");
 }
@@ -3135,6 +3135,56 @@ void testOptimizedRendererStableExecution() {
     assert(graphics.readTileIndex(19, 14) == 3);
 
     printf("[PASS] Optimized renderer stable execution test passed\n");
+}
+
+void testSnakeRuntimeDisplaysEmptyGameScreen() {
+    CPU cpu;
+
+    cpu.setPC(0x5000);
+    cpu.getRegisters().setRegister(4, 0x1234);
+    cpu.getMemory().write8(0xF000, 9);
+
+    SnakeRuntime::initialize(cpu);
+
+    GraphicsMemory graphics(cpu.getMemory());
+    Rgb888Color color;
+    unsigned char paletteIndex = 0;
+
+    assert(cpu.getPC() == 0x0020);
+    assert(cpu.getRegisters().getRegister(4) == 0);
+
+    assert(graphics.readPaletteColor(0) == 0x00);
+    assert(graphics.readPaletteColor(1) == 0x1C);
+    assert(graphics.readPaletteColor(2) == 0xE0);
+    assert(graphics.readPaletteColor(3) == 0xFF);
+
+    assert(graphics.readTilePixel(SnakeRuntime::EMPTY_TILE, 0, 0, paletteIndex) == true);
+    assert(paletteIndex == 0);
+
+    assert(graphics.readTilePixel(SnakeRuntime::SNAKE_TILE, 0, 0, paletteIndex) == true);
+    assert(paletteIndex == 1);
+
+    assert(graphics.readTilePixel(SnakeRuntime::FOOD_TILE, 0, 0, paletteIndex) == true);
+    assert(paletteIndex == 2);
+
+    assert(graphics.readTilePixel(SnakeRuntime::WALL_TILE, 0, 0, paletteIndex) == true);
+    assert(paletteIndex == 3);
+
+    assert(graphics.readTileIndex(0, 0) == SnakeRuntime::WALL_TILE);
+    assert(graphics.readTileIndex(19, 14) == SnakeRuntime::WALL_TILE);
+    assert(graphics.readTileIndex(1, 1) == SnakeRuntime::EMPTY_TILE);
+    assert(graphics.readTileIndex(18, 13) == SnakeRuntime::EMPTY_TILE);
+
+    assert(graphics.renderScreenPixel(0, 0, color) == true);
+    assertRgbColor(color, 0xFF, 0xFF, 0xFF);
+
+    assert(graphics.renderScreenPixel(16, 16, color) == true);
+    assertRgbColor(color, 0x00, 0x00, 0x00);
+
+    assert(graphics.renderScreenPixel(319, 239, color) == true);
+    assertRgbColor(color, 0xFF, 0xFF, 0xFF);
+
+    printf("[PASS] Snake runtime empty game screen test passed\n");
 }
 
 void resetWholeSimulator(Gui& gui, CPU& cpu, bool& running, int& runDelay) {
@@ -3791,6 +3841,7 @@ int main() {
     testFrameTimingStableRefresh();
     testGraphicsContinuousRenderingStress();
     testOptimizedRendererStableExecution();
+    testSnakeRuntimeDisplaysEmptyGameScreen();
     testFirstGraphicsDemoDrawsStaticImage();
     testKeyboardDemoMovesObject();
     testAudioDemoPlaysSoundWithKeyPress();
@@ -3869,7 +3920,6 @@ int main() {
     bool runToCursorActive = false;
     int frameNumber = 0;
     int runDelay = 0;
-    int keyboardMoveDelay = 0;
     unsigned short lastAudioDemoKey = CPU::ZX16_KEY_NONE;
 
     while (!gui.shouldClose()) {
@@ -3893,7 +3943,6 @@ int main() {
         );
 
         if (action == GUI_ACTION_RESET) {
-            keyboardMoveDelay = 0;
             lastAudioDemoKey = CPU::ZX16_KEY_NONE;
         }
 
@@ -3904,18 +3953,6 @@ int main() {
         }
 
         lastAudioDemoKey = currentAudioDemoKey;
-
-        if (guiCpu.getKeyboardKey() == CPU::ZX16_KEY_NONE) {
-            keyboardMoveDelay = 0;
-        }
-        else {
-            keyboardMoveDelay++;
-
-            if (keyboardMoveDelay >= 6) {
-                updateKeyboardDemo(guiCpu);
-                keyboardMoveDelay = 0;
-            }
-        }
 
         if (running && !guiCpu.isHalted()) {
             runDelay++;

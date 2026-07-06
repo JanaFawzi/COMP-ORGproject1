@@ -29,6 +29,7 @@ add_executable(zx16sim
     src/instruction_decoder.cpp
     src/gui.cpp
     src/graphics_memory.cpp
+    src/snake_runtime.cpp
 
  "src/breakpoint_manager.h")
 
