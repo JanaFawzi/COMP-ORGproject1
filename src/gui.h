@@ -56,7 +56,7 @@ public:
     
     void resetDebugState();
 
-    static unsigned short getDisassemblyAddressFromClick(
+    static unsigned short getMemoryCursorAddressFromClick(
         int mouseX,
         int mouseY,
         unsigned short pc,
@@ -127,8 +127,8 @@ private:
 
     unsigned short cursorAddress;
     bool cursorAddressSelected;
-    void updateDisassemblyCursorFromMouse(unsigned short pc);
-    void updateDisassemblyBreakpointFromMouse(bool running, CPU& cpu);
+    void updateMemoryCursorFromMouse(unsigned short pc);
+    void updateMemoryBreakpointFromMouse(bool running, CPU& cpu);
 
     static unsigned short getMemoryByteAddressFromClick(
         int mouseX,
@@ -182,6 +182,7 @@ private:
     void drawCompactMemoryLine(
         CPU& cpu,
         unsigned short address,
+        unsigned short pc,
         int x,
         int y
     );

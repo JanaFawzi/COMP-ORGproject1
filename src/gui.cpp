@@ -11,6 +11,7 @@ static bool guiAudioReady = false;
 static bool guiToneLoaded = false;
 static Sound guiToneSound;
 static unsigned int guiLastToneRequestId = 0;
+static const Color GUI_CURSOR_LIGHT_PINK = { 255, 182, 193, 255 };
 
 Gui::Gui() {
     width = 800;
@@ -327,20 +328,16 @@ void Gui::drawDisassemblyPanel(CPU& cpu, bool running) {
     int cpuWidth = expandedWidth - graphicsWidth;
     int panelWidth = cpuWidth - 500;
 
-    updateDisassemblyBreakpointFromMouse(running, cpu);
-    updateDisassemblyCursorFromMouse(cpu.getPC());
-
     DrawRectangleLines(490, 55, panelWidth, graphicsHeight - 100, GREEN);
     DrawText("Disassembly / Debugger", 502, 68, 18, GREEN);
-    DrawText("Yellow=current Blue=cursor Red=breakpoint", 500, 92, 10, RAYWHITE);
+    DrawText("Yellow marks the current instruction", 500, 92, 10, RAYWHITE);
 
     for (int row = 0; row < 11; row++) {
         unsigned short address = (unsigned short)(baseAddress + row * 2);
         drawDisassemblyLine(cpu, address, 500, 112 + row * 23);
     }
 
-    DrawText("Left=cursor Right-click=breakpoint", 500, 370, 10, RAYWHITE);
-    DrawText("Shift+left also toggles breakpoint", 500, 386, 10, GRAY);
+    DrawText("Debug controls are available in RAM", 500, 370, 10, GRAY);
 }
 
 void Gui::drawDisassemblyLine(CPU& cpu, unsigned short address, int x, int y) {
@@ -352,17 +349,9 @@ void Gui::drawDisassemblyLine(CPU& cpu, unsigned short address, int x, int y) {
     disassembleInstruction(word, disassembly, 80);
     snprintf(text, 128, "0x%04X  %04X  %s", address, word, disassembly);
 
-    if (cpu.hasBreakpoint(address)) {
-        DrawRectangle(x - 3, y - 2, 270, 18, RED);
-        textColor = YELLOW;
-    }
-    else if (address == cpu.getPC()) {
+    if (address == cpu.getPC()) {
         DrawRectangle(x - 3, y - 2, 270, 18, DARKGREEN);
         textColor = YELLOW;
-    }
-    else if (cursorAddressSelected && address == cursorAddress) {
-        DrawRectangle(x - 3, y - 2, 270, 18, DARKBLUE);
-        textColor = SKYBLUE;
     }
 
     DrawText(text, x, y, 11, textColor);
@@ -1311,7 +1300,7 @@ void Gui::formatMemoryLine(CPU& cpu, unsigned short address, char text[]) {
     );
 }
 
-void Gui::drawCompactMemoryLine(CPU& cpu, unsigned short address, int x, int y) {
+void Gui::drawCompactMemoryLine(CPU& cpu, unsigned short address, unsigned short pc, int x, int y) {
     char prefix[20];
     char byteText[8];
 
@@ -1326,9 +1315,23 @@ void Gui::drawCompactMemoryLine(CPU& cpu, unsigned short address, int x, int y) 
 
         sprintf(byteText, "%02X", value);
 
-        if (memoryAddressSelected && byteAddress == selectedMemoryAddress) {
+        unsigned short instructionAddress = byteAddress & 0xFFFE;
+
+        if (cpu.hasBreakpoint(instructionAddress)) {
+            DrawRectangle(byteX - 3, y - 2, 19, 17, RED);
+            DrawText(byteText, byteX, y, 13, YELLOW);
+        }
+        else if (memoryAddressSelected && byteAddress == selectedMemoryAddress) {
             DrawRectangle(byteX - 3, y - 2, 19, 17, DARKBLUE);
             DrawText(byteText, byteX, y, 13, SKYBLUE);
+        }
+        else if (cursorAddressSelected && isCurrentInstructionByte(byteAddress, cursorAddress)) {
+            DrawRectangle(byteX - 3, y - 2, 19, 17, GUI_CURSOR_LIGHT_PINK);
+            DrawText(byteText, byteX, y, 13, MAROON);
+        }
+        else if (isCurrentInstructionByte(byteAddress, pc)) {
+            DrawRectangle(byteX - 3, y - 2, 19, 17, DARKGREEN);
+            DrawText(byteText, byteX, y, 13, YELLOW);
         }
         else {
             DrawText(byteText, byteX, y, 13, GREEN);
@@ -1341,6 +1344,9 @@ void Gui::drawCompactMemoryLine(CPU& cpu, unsigned short address, int x, int y) 
 void Gui::drawMemoryPanel(CPU& cpu, bool running) {
     unsigned short baseAddress = cpu.getPC() >= 30 ? (unsigned short)(cpu.getPC() - 30) : 0;
 
+    updateMemoryBreakpointFromMouse(running, cpu);
+    updateMemoryCursorFromMouse(cpu.getPC());
+
     if (!running) {
         updateMemoryEditorFromMouse(running, cpu);
     }
@@ -1349,10 +1355,21 @@ void Gui::drawMemoryPanel(CPU& cpu, bool running) {
 
     DrawRectangleLines(260, 55, 220, graphicsHeight - 100, GREEN);
     DrawText("RAM", 275, 68, 18, GREEN);
-    DrawText("Right-click byte to edit", 275, 94, 11, RAYWHITE);
+    char breakpointCountText[24];
+    sprintf(breakpointCountText, "BP:%d", cpu.getBreakpointCount());
+    DrawText(breakpointCountText, 430, 70, 11, RED);
+    DrawText("Left-click=pink run cursor", 270, 94, 10, RAYWHITE);
+    DrawText("Shift+right-click=red breakpoint", 270, 106, 9, RAYWHITE);
+    DrawText("Right-click byte to edit", 270, 117, 9, GRAY);
 
     for (int row = 0; row < 10; row++) {
-        drawCompactMemoryLine(cpu, (unsigned short)(baseAddress + row * 6), 270, 118 + row * 22);
+        drawCompactMemoryLine(cpu, (unsigned short)(baseAddress + row * 6), cpu.getPC(), 270, 130 + row * 21);
+    }
+
+    if (cursorAddressSelected) {
+        char cursorText[48];
+        sprintf(cursorText, "Run cursor: 0x%04X", cursorAddress);
+        DrawText(cursorText, 275, 326, 11, GUI_CURSOR_LIGHT_PINK);
     }
 
     if (memoryAddressSelected) {
@@ -1532,7 +1549,7 @@ void Gui::resetDebugState() {
     }
 }
 
-unsigned short Gui::getDisassemblyAddressFromClick(
+unsigned short Gui::getMemoryCursorAddressFromClick(
     int mouseX,
     int mouseY,
     unsigned short pc,
@@ -1540,10 +1557,13 @@ unsigned short Gui::getDisassemblyAddressFromClick(
 ) {
     valid = false;
 
-    int panelX = 500;
-    int firstRowY = 110;
-    int rowHeight = 23;
-    int rowCount = 11;
+    int memoryX = 270;
+    int firstRowY = 128;
+    int rowHeight = 21;
+    int rowCount = 10;
+    int byteStartX = memoryX + 68;
+    int byteWidth = 22;
+    int byteCount = 6;
 
     if (mouseY < firstRowY) {
         return 0;
@@ -1553,18 +1573,27 @@ unsigned short Gui::getDisassemblyAddressFromClick(
         return 0;
     }
 
-    if (mouseX < panelX || mouseX >= panelX + 280) {
+    if (mouseX < memoryX || mouseX >= byteStartX + byteCount * byteWidth) {
         return 0;
     }
 
     int row = (mouseY - firstRowY) / rowHeight;
-    unsigned short baseAddress = getDisassemblyBaseAddress(pc);
+    unsigned short baseAddress = pc >= 30 ? (unsigned short)(pc - 30) : 0;
+    unsigned short rowAddress = (unsigned short)(baseAddress + row * 6);
+
+    if (mouseX < byteStartX) {
+        valid = true;
+        return rowAddress & 0xFFFE;
+    }
+
+    int byteColumn = (mouseX - byteStartX) / byteWidth;
+    int instructionByteColumn = byteColumn & 0xFE;
     valid = true;
 
-    return (unsigned short)(baseAddress + row * 2);
+    return (unsigned short)((rowAddress + instructionByteColumn) & 0xFFFE);
 }
 
-void Gui::updateDisassemblyCursorFromMouse(unsigned short pc) {
+void Gui::updateMemoryCursorFromMouse(unsigned short pc) {
     if (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT)) {
         return;
     }
@@ -1575,7 +1604,7 @@ void Gui::updateDisassemblyCursorFromMouse(unsigned short pc) {
 
     bool valid = false;
 
-    unsigned short selectedAddress = getDisassemblyAddressFromClick(
+    unsigned short selectedAddress = getMemoryCursorAddressFromClick(
         getUiMouseX(),
         getUiMouseY(),
         pc,
@@ -1587,21 +1616,17 @@ void Gui::updateDisassemblyCursorFromMouse(unsigned short pc) {
     }
 }
 
-void Gui::updateDisassemblyBreakpointFromMouse(bool running, CPU& cpu) {
-    bool shiftLeftClick =
-        (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT)) &&
-        IsMouseButtonPressed(MOUSE_LEFT_BUTTON);
+void Gui::updateMemoryBreakpointFromMouse(bool running, CPU& cpu) {
+    bool shiftDown = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT);
     bool rightClick = IsMouseButtonPressed(MOUSE_RIGHT_BUTTON);
 
-    if (!shiftLeftClick && !rightClick) {
+    if (!shiftDown || !rightClick) {
         return;
     }
 
-    (void)running;
-
     bool valid = false;
 
-    unsigned short address = getDisassemblyAddressFromClick(
+    unsigned short address = getMemoryCursorAddressFromClick(
         getUiMouseX(),
         getUiMouseY(),
         cpu.getPC(),
@@ -1611,6 +1636,8 @@ void Gui::updateDisassemblyBreakpointFromMouse(bool running, CPU& cpu) {
     if (valid) {
         cpu.toggleBreakpoint(address);
     }
+
+    (void)running;
 }
 
 unsigned short Gui::getMemoryByteAddressFromClick(
@@ -1621,8 +1648,8 @@ unsigned short Gui::getMemoryByteAddressFromClick(
 ) {
     valid = false;
 
-    int memoryY = 116;
-    int rowHeight = 22;
+    int memoryY = 128;
+    int rowHeight = 21;
     int rowCount = 10;
 
     int byteStartX = 270 + 68;
@@ -1679,6 +1706,10 @@ void Gui::updateMemoryEditorFromMouse(bool running, CPU& cpu) {
     }
 
     if (!IsMouseButtonPressed(MOUSE_RIGHT_BUTTON)) {
+        return;
+    }
+
+    if (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT)) {
         return;
     }
 

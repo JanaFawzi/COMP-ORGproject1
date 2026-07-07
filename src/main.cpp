@@ -2107,6 +2107,34 @@ void testProgramLoader() {
 
     remove(filename);
 
+    const char fullImageFilename[] = "loader_full_image_test.bin";
+    FILE* fullImage = fopen(fullImageFilename, "wb");
+    assert(fullImage != 0);
+
+    for (int address = 0; address < Memory::RAM_SIZE; address++) {
+        unsigned char value = 0;
+
+        if (address == 0x0000) value = 0x11;
+        if (address == 0x0020) value = 0x22;
+        if (address == 0x8000) value = 0x33;
+        if (address == 0x9000) value = 0x44;
+        if (address == 0xFFFF) value = 0x55;
+
+        fputc(value, fullImage);
+    }
+
+    fclose(fullImage);
+
+    bytesLoaded = ProgramLoader::loadBin(memory, fullImageFilename);
+    assert(bytesLoaded == Memory::RAM_SIZE);
+    assert(memory.read8(0x0000) == 0x11);
+    assert(memory.read8(0x0020) == 0x22);
+    assert(memory.read8(0x8000) == 0x33);
+    assert(memory.read8(0x9000) == 0x44);
+    assert(memory.read8(0xFFFF) == 0x55);
+
+    remove(fullImageFilename);
+
     printf("[PASS] Program loader test passed\n");
 }
 
@@ -3377,6 +3405,42 @@ void testGuiStepExecutesOneInstruction() {
     printf("[PASS] GUI step executes one instruction test passed\n");
 }
 
+void testGuiRunToCursorStopsAtRamSelection() {
+    CPU cpu;
+    Gui gui;
+    bool running = false;
+    bool runToCursorActive = false;
+    int runDelay = 0;
+
+    cpu.reset();
+    cpu.getMemory().write16(0x0020, makeI(1, 3, 0));
+    cpu.getMemory().write16(0x0022, makeI(2, 4, 0));
+    cpu.getMemory().write16(0x0024, makeI(3, 5, 0));
+    cpu.getMemory().write16(0x0026, makeSys(0x3FF));
+
+    assert(gui.setCursorAddress(0x0024) == true);
+    handleGuiAction(gui, cpu, GUI_ACTION_RUN_TO_CURSOR, running, runToCursorActive, runDelay);
+    assert(running == true);
+    assert(runToCursorActive == true);
+
+    while (running && cpu.getPC() != gui.getCursorAddress()) {
+        assert(cpu.stepWithBreakpoints() == true);
+        if (cpu.getPC() == gui.getCursorAddress()) {
+            running = false;
+            runToCursorActive = false;
+        }
+    }
+
+    assert(cpu.getPC() == 0x0024);
+    assert(cpu.getRegisters().getRegister(3) == 1);
+    assert(cpu.getRegisters().getRegister(4) == 2);
+    assert(cpu.getRegisters().getRegister(5) == 0);
+    assert(running == false);
+    assert(runToCursorActive == false);
+
+    printf("[PASS] GUI run to RAM cursor test passed\n");
+}
+
 void testGuiRegisterEditingModifiesRegisters() {
     Gui gui;
     CPU cpu;
@@ -3676,12 +3740,17 @@ void testBreakpointStopsExecution() {
     assert(cpu.hasBreakpoint(0x7002) == true);
 
     assert(cpu.setBreakpoint(0x7004) == true);
-    assert(cpu.getBreakpointCount() == 1);
-    assert(cpu.hasBreakpoint(0x7002) == false);
+    assert(cpu.getBreakpointCount() == 2);
+    assert(cpu.hasBreakpoint(0x7002) == true);
     assert(cpu.hasBreakpoint(0x7004) == true);
     assert(cpu.setBreakpoint(0x7002) == true);
-    assert(cpu.hasBreakpoint(0x7004) == false);
+    assert(cpu.getBreakpointCount() == 2);
+    assert(cpu.hasBreakpoint(0x7004) == true);
     assert(cpu.hasBreakpoint(0x7002) == true);
+
+    assert(cpu.clearBreakpoint(0x7004) == true);
+    assert(cpu.getBreakpointCount() == 1);
+    assert(cpu.hasBreakpoint(0x7004) == false);
 
     assert(cpu.setBreakpoint(0x7002) == true);
     assert(cpu.getBreakpointCount() == 1);
@@ -3756,19 +3825,19 @@ void testCurrentPcHighlightMovesCorrectly() {
     assert(Gui::getDisassemblyBaseAddress(0x7001) == 0x6FF0);
     assert(Gui::getDisassemblyBaseAddress(0xFFFF) == 0xFFDC);
 
-    bool validAssemblyClick = false;
-    assert(Gui::getDisassemblyAddressFromClick(510, 110, 0x7000, validAssemblyClick) == 0x6FF0);
-    assert(validAssemblyClick == true);
-    assert(Gui::getDisassemblyAddressFromClick(510, 294, 0x7000, validAssemblyClick) == 0x7000);
-    assert(validAssemblyClick == true);
-    unsigned short clickedBreakpointAddress = Gui::getDisassemblyAddressFromClick(
-        510, 294, 0x7000, validAssemblyClick
+    bool validMemoryClick = false;
+    assert(Gui::getMemoryCursorAddressFromClick(280, 128, 0x7000, validMemoryClick) == 0x6FE2);
+    assert(validMemoryClick == true);
+    assert(Gui::getMemoryCursorAddressFromClick(340, 233, 0x7000, validMemoryClick) == 0x7000);
+    assert(validMemoryClick == true);
+    unsigned short clickedBreakpointAddress = Gui::getMemoryCursorAddressFromClick(
+        340, 233, 0x7000, validMemoryClick
     );
     assert(cpu.toggleBreakpoint(clickedBreakpointAddress) == true);
     assert(cpu.hasBreakpoint(0x7000) == true);
     assert(cpu.clearBreakpoint(0x7000) == true);
-    Gui::getDisassemblyAddressFromClick(480, 294, 0x7000, validAssemblyClick);
-    assert(validAssemblyClick == false);
+    Gui::getMemoryCursorAddressFromClick(250, 233, 0x7000, validMemoryClick);
+    assert(validMemoryClick == false);
 
     assert(Gui::isCurrentInstructionByte(0x7000, 0x7000) == true);
     assert(Gui::isCurrentInstructionByte(0x7001, 0x7000) == true);
@@ -3925,6 +3994,7 @@ int main() {
     testEcallHaltExecution();
 
     testGuiStepExecutesOneInstruction();
+    testGuiRunToCursorStopsAtRamSelection();
     testEntireSimulatorReset();
     testGuiRegisterEditingModifiesRegisters();
     testGuiMemoryEditingModifiesRam();
