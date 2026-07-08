@@ -32,7 +32,7 @@ Pass the generated image to the simulator:
 cmake-build-debug/zx16sim.exe asm/bin/01_arithmetic_registers.bin
 ```
 
-The first six documented tests, expected results, actual results, and screenshots
+The documented assembly tests, expected results, actual results, and screenshots
 are in [`docs/assembly_test_results.md`](docs/assembly_test_results.md).
 
 ## Run the reference comparison

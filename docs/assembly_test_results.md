@@ -1,6 +1,6 @@
 # ZX16 Assembly Tests
 
-This file shows the result of the first six assembly tests.
+This file shows the result of the ten assembly tests.
 
 ## Running a test
 
@@ -93,6 +93,66 @@ Actual: PASS.
 
 ![Test 06 output](screenshots/assembly-tests/06_stack_subroutines.png)
 
+## Test 07 - Console and string services
+
+File: [`07_console_string_services.s`](../asm/tests/07_console_string_services.s)
+
+Checks: `print_int`, `print_char`, `print_string`, `read_int`, and
+`read_string`.
+
+Expected: `0x7FFF` prints as `32767`, `0x8000` prints as `-32768`, characters
+and strings appear in order, and empty input reads report zero length/value.
+
+Actual: PASS.
+
+![Test 07 output](screenshots/assembly-tests/07_console_string_services.png)
+
+## Test 08 - RNG, keyboard and audio
+
+File: [`08_rng_keyboard_audio.s`](../asm/tests/08_rng_keyboard_audio.s)
+
+Checks: RNG seed/random services, keyboard read, tone, volume, and stop-audio
+services.
+
+Expected: seed `0xACE1` produces `0xD30F`, `0xF1A5`, then `0x1734`; seed zero
+stays zero; unattended keyboard input returns no key; valid audio service calls
+complete.
+
+Actual: PASS.
+
+![Test 08 output](screenshots/assembly-tests/08_rng_keyboard_audio.png)
+
+## Test 09 - Graphics VRAM
+
+File: [`09_graphics_vram.s`](../asm/tests/09_graphics_vram.s)
+
+Checks: tile-map addresses, tile-definition addresses, low/high nibble pixel
+order, palette bytes, and RGB332 expansion math.
+
+Expected: tile-map writes work at `0xF000` and `0xF12B`, tile-definition writes
+work at `0xF200` and `0xF9FF`, palette writes work at `0xFA00` and `0xFA0F`,
+and full-intensity RGB332 channels expand to `0xFF`.
+
+Actual: PASS.
+
+![Test 09 output](screenshots/assembly-tests/09_graphics_vram.png)
+
+## Test 10 - Full integration corner cases
+
+File: [`10_full_integration_corner_cases.s`](../asm/tests/10_full_integration_corner_cases.s)
+
+Checks: register wraparound and writable `x0`, odd-address memory access, sign
+extension, loops, signed/unsigned comparisons, stack push/pop, nested calls,
+RNG/keyboard/console services, and graphics VRAM edge addresses.
+
+Expected: the combined program keeps `sp` balanced at `0xF000`, gets the seeded
+RNG value `0x3830`, sees no unattended keyboard input, writes the final tile-map
+cell, final tile-definition byte, and final palette byte, then prints PASS.
+
+Actual: PASS.
+
+![Test 10 output](screenshots/assembly-tests/10_full_integration_corner_cases.png)
+
 ## My simulator results
 
 | Test | Result |
@@ -103,13 +163,17 @@ Actual: PASS.
 | 04 Memory | PASS |
 | 05 Branches and jumps | PASS |
 | 06 Stack and functions | PASS |
+| 07 Console and string services | PASS |
+| 08 RNG, keyboard and audio | PASS |
+| 09 Graphics VRAM | PASS |
+| 10 Full integration corner cases | PASS |
 
-The supplied assembler built all six programs. The programs use `print_string`
+The supplied assembler built all ten programs. The programs use `print_string`
 to show their results in the console.
 
 ## Reference simulator check
 
-I also ran the same `.bin` files with `reference/zx16sim.py`.
+I also ran the original six `.bin` files with `reference/zx16sim.py`.
 
 The reference simulator only prints with `print_int` and `print_char`. These
 tests use `print_string`, so the reference console output is empty. I checked the
@@ -124,5 +188,7 @@ final message address in `x6` instead.
 | 05 Branches and jumps | PASS | PASS | Same result |
 | 06 Stack and functions | PASS | PASS | Same result |
 
-So the six tests now pass in my simulator and in the provided reference
-simulator.
+The provided reference simulator does not implement the newer console input,
+RNG, keyboard, or audio ECALLs used by tests 07, 08, and 10, so those are
+verified with the project simulator service behavior instead. Test 09 uses
+ordinary loads, stores, shifts, and branches around graphics VRAM addresses.

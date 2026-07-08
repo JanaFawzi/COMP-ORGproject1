@@ -1,0 +1,144 @@
+ZX16 Assembler Listing
+==================================================
+
+   1      # Test 07: console and string services
+   2      # It exercises print/read integer, character, and string ECALLs.
+   3      
+   4      .text
+   5      
+   6      start:
+   7          li16 a0, title
+   8          ecall 0x012
+   9      
+  10          # print_int treats 0x7FFF as 32767 and 0x8000 as -32768.
+  11          li16 a0, boundary_text
+  12          ecall 0x012
+  13          li16 a0, 0x7FFF
+  14          ecall 0x000
+  15          li a0, 32
+  16          ecall 0x001
+  17          li16 a0, 0x8000
+  18          ecall 0x000
+  19          li a0, 10
+  20          ecall 0x001
+  21          li16 a0, boundary_pass
+  22          ecall 0x012
+  23      
+  24          # print_char emits the low byte of a0.
+  25          li16 a0, char_text
+  26          ecall 0x012
+  27          li a0, 'Z'
+  28          ecall 0x001
+  29          li a0, 'X'
+  30          ecall 0x001
+  31          li a0, '1'
+  32          ecall 0x001
+  33          li a0, '6'
+  34          ecall 0x001
+  35          li a0, 10
+  36          ecall 0x001
+  37          li16 a0, char_pass
+  38          ecall 0x012
+  39      
+  40          # print_string walks bytes until the zero terminator.
+  41          li16 a0, sample_string
+  42          ecall 0x012
+  43          li16 a0, string_pass
+  44          ecall 0x012
+  45      
+  46          # With the GUI assembly runner there is no scripted input, so read_int
+  47          # should return zero when no digits are available.
+  48          ecall 0x011
+  49          li x3, 0
+  50          beq a0, x3, read_int_ok
+  51          j read_int_fail
+  52      read_int_ok:
+  53          li16 a0, read_int_pass
+  54          ecall 0x012
+  55      
+  56          # read_string at EOF writes a terminator and reports length zero.
+  57          li16 a0, input_buffer
+  58          li a1, 8
+  59          ecall 0x010
+  60          li x3, 0
+  61          beq a0, x3, read_len_ok
+  62          j read_string_fail
+  63      read_len_ok:
+  64          li16 x4, input_buffer
+  65          lbu x5, 0(x4)
+  66          li x3, 0
+  67          beq x5, x3, read_string_ok
+  68          j read_string_fail
+  69      read_string_ok:
+  70          li16 a0, read_string_pass
+  71          ecall 0x012
+  72      
+  73          li16 a0, all_pass
+  74          ecall 0x012
+  75          ecall 0x3FF
+  76      
+  77      read_int_fail:
+  78          li16 a0, read_int_bad
+  79          ecall 0x012
+  80          ecall 0x3FF
+  81      read_string_fail:
+  82          li16 a0, read_string_bad
+  83          ecall 0x012
+  84          ecall 0x3FF
+  85      
+  86      .data
+  87      input_buffer:      .space 8
+  88      title:             .string "TEST 07 - CONSOLE STRING SERVICES\n"
+  89      boundary_text:     .string "PRINT INT BOUNDARIES: "
+  90      boundary_pass:     .string "PRINT INT 0X7FFF AND 0X8000: PASS\n"
+  91      char_text:         .string "PRINT CHAR SAMPLE: "
+  92      sample_string:     .string "PRINT STRING SAMPLE: PASS\n"
+  93      char_pass:         .string "PRINT CHAR: PASS\n"
+  94      string_pass:       .string "PRINT STRING: PASS\n"
+  95      read_int_pass:     .string "READ INT EMPTY INPUT: PASS\n"
+  96      read_string_pass:  .string "READ STRING EMPTY INPUT: PASS\n"
+  97      all_pass:          .string "TEST 07 RESULT: PASS\n"
+  98      read_int_bad:      .string "TEST 07 RESULT: FAIL AT READ INT\n"
+  99      read_string_bad:   .string "TEST 07 RESULT: FAIL AT READ STRING\n"
+
+Symbol Table:
+------------------------------
+A0                   = 0x0006  (global)
+A1                   = 0x0007  (global)
+CODE_START           = 0x0020  (global)
+MEM_SIZE             = 0x10000  (global)
+MMIO_BASE            = 0xF000  (global)
+RA                   = 0x0001  (global)
+RESET_VECTOR         = 0x0000  (global)
+S0                   = 0x0003  (global)
+S1                   = 0x0004  (global)
+SP                   = 0x0002  (global)
+T0                   = 0x0000  (global)
+T1                   = 0x0005  (global)
+all_pass             = 0x80F5  (local)
+boundary_pass        = 0x8042  (local)
+boundary_text        = 0x802B  (local)
+char_pass            = 0x8094  (local)
+char_text            = 0x8065  (local)
+input_buffer         = 0x8000  (local)
+read_int_bad         = 0x810B  (local)
+read_int_fail        = 0x00AC  (local)
+read_int_ok          = 0x007E  (local)
+read_int_pass        = 0x80BA  (local)
+read_len_ok          = 0x0092  (local)
+read_string_bad      = 0x812D  (local)
+read_string_fail     = 0x00B4  (local)
+read_string_ok       = 0x009E  (local)
+read_string_pass     = 0x80D6  (local)
+sample_string        = 0x8079  (local)
+start                = 0x0020  (local)
+string_pass          = 0x80A6  (local)
+title                = 0x8008  (local)
+
+Statistics:
+  Code size:    156 bytes
+  Data size:    338 bytes
+  BSS size:     0 bytes
+  Total size:   494 bytes
+  Symbols:      33
+  Lines:        99

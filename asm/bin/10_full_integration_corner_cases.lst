@@ -1,0 +1,280 @@
+ZX16 Assembler Listing
+==================================================
+
+   1      # Test 10: full integration corner cases
+   2      # One program combines registers, memory, control flow, stack, services, and graphics.
+   3      
+   4      .text
+   5      
+   6      start:
+   7          li16 a0, title
+   8          ecall 0x012
+   9      
+  10          # Register corner cases: writable x0 and 16-bit wraparound.
+  11          li x0, 9
+  12          li x3, 1
+  13          add x0, x3
+  14          li x3, 10
+  15          beq x0, x3, writable_x0_ok
+  16          li16 a0, reg_bad
+  17          ecall 0x012
+  18          ecall 0x3FF
+  19      writable_x0_ok:
+  20          li16 x3, 0xFFFF
+  21          li x4, 1
+  22          add x3, x4
+  23          li x4, 0
+  24          beq x3, x4, register_ok
+  25          li16 a0, reg_bad
+  26          ecall 0x012
+  27          ecall 0x3FF
+  28      register_ok:
+  29          li16 a0, reg_pass
+  30          ecall 0x012
+  31      
+  32          # Memory corner cases: odd-address word access and sign extension.
+  33          li16 x3, work_area
+  34          li16 x4, 0xCAFE
+  35          sw x4, 1(x3)
+  36          lw x5, 1(x3)
+  37          beq x5, x4, odd_word_ok
+  38          li16 a0, memory_bad
+  39          ecall 0x012
+  40          ecall 0x3FF
+  41      odd_word_ok:
+  42          lbu x5, 1(x3)
+  43          li16 x4, 0x00FE
+  44          beq x5, x4, low_byte_ok
+  45          li16 a0, memory_bad
+  46          ecall 0x012
+  47          ecall 0x3FF
+  48      low_byte_ok:
+  49          lb x5, 2(x3)
+  50          li16 x4, 0xFFCA
+  51          beq x5, x4, memory_ok
+  52          li16 a0, memory_bad
+  53          ecall 0x012
+  54          ecall 0x3FF
+  55      memory_ok:
+  56          li16 a0, memory_pass
+  57          ecall 0x012
+  58      
+  59          # Control flow: loop, signed compare, and unsigned compare.
+  60          li x3, 0
+  61          li x4, 1
+  62      sum_loop:
+  63          add x3, x4
+  64          addi x4, 1
+  65          li x5, 5
+  66          blt x4, x5, sum_loop
+  67          li x5, 10
+  68          beq x3, x5, loop_ok
+  69          li16 a0, control_bad
+  70          ecall 0x012
+  71          ecall 0x3FF
+  72      loop_ok:
+  73          li16 x3, 0xFFFF
+  74          li x4, 1
+  75          slt x3, x4
+  76          li x5, 1
+  77          beq x3, x5, signed_compare_ok
+  78          li16 a0, control_bad
+  79          ecall 0x012
+  80          ecall 0x3FF
+  81      signed_compare_ok:
+  82          li16 x3, 0xFFFF
+  83          li x4, 1
+  84          sltu x3, x4
+  85          li x5, 0
+  86          beq x3, x5, control_ok
+  87          li16 a0, control_bad
+  88          ecall 0x012
+  89          ecall 0x3FF
+  90      control_ok:
+  91          li16 a0, control_pass
+  92          ecall 0x012
+  93      
+  94          # Stack and subroutines: push/pop plus nested call preserving ra.
+  95          li16 x3, 0xBEEF
+  96          push x3
+  97          li16 x4, 0xEFFE
+  98          beq sp, x4, push_sp_ok
+  99          li16 a0, stack_bad
+ 100          ecall 0x012
+ 101          ecall 0x3FF
+ 102      push_sp_ok:
+ 103          pop x4
+ 104          beq x4, x3, pop_value_ok
+ 105          li16 a0, stack_bad
+ 106          ecall 0x012
+ 107          ecall 0x3FF
+ 108      pop_value_ok:
+ 109          li x3, 7
+ 110          call outer_function
+ 111          li x4, 10
+ 112          beq x3, x4, call_value_ok
+ 113          li16 a0, stack_bad
+ 114          ecall 0x012
+ 115          ecall 0x3FF
+ 116      call_value_ok:
+ 117          li16 x4, 0xF000
+ 118          beq sp, x4, stack_ok
+ 119          li16 a0, stack_bad
+ 120          ecall 0x012
+ 121          ecall 0x3FF
+ 122      stack_ok:
+ 123          li16 a0, stack_pass
+ 124          ecall 0x012
+ 125          j after_functions
+ 126      
+ 127      outer_function:
+ 128          push ra
+ 129          addi x3, 1
+ 130          call inner_function
+ 131          pop ra
+ 132          ret
+ 133      
+ 134      inner_function:
+ 135          addi x3, 2
+ 136          ret
+ 137      
+ 138      after_functions:
+ 139          # Services: deterministic RNG, keyboard no-key, and print_char.
+ 140          li16 a0, service_mark
+ 141          ecall 0x012
+ 142          li a0, '!'
+ 143          ecall 0x001
+ 144          li a0, 10
+ 145          ecall 0x001
+ 146          li16 a0, 0x1234
+ 147          ecall 0x020
+ 148          ecall 0x021
+ 149          li16 x3, 0x3830
+ 150          beq a0, x3, rng_ok
+ 151          li16 a0, service_bad
+ 152          ecall 0x012
+ 153          ecall 0x3FF
+ 154      rng_ok:
+ 155          ecall 0x030
+ 156          li x3, 0
+ 157          beq a0, x3, services_ok
+ 158          li16 a0, service_bad
+ 159          ecall 0x012
+ 160          ecall 0x3FF
+ 161      services_ok:
+ 162          li16 a0, service_pass
+ 163          ecall 0x012
+ 164      
+ 165          # Graphics edge addresses: last tile-map cell, last tile byte, last palette byte.
+ 166          li16 x3, 0xF128
+ 167          li x4, 15
+ 168          sb x4, 3(x3)
+ 169          lbu x5, 3(x3)
+ 170          beq x5, x4, graphics_tile_ok
+ 171          li16 a0, graphics_bad
+ 172          ecall 0x012
+ 173          ecall 0x3FF
+ 174      graphics_tile_ok:
+ 175          li16 x3, 0xF9F8
+ 176          li16 x4, 0x00AB
+ 177          sb x4, 7(x3)
+ 178          lbu x5, 7(x3)
+ 179          beq x5, x4, graphics_def_ok
+ 180          li16 a0, graphics_bad
+ 181          ecall 0x012
+ 182          ecall 0x3FF
+ 183      graphics_def_ok:
+ 184          li16 x3, 0xFA08
+ 185          li16 x4, 0x00E3
+ 186          sb x4, 7(x3)
+ 187          lbu x5, 7(x3)
+ 188          beq x5, x4, graphics_ok
+ 189          li16 a0, graphics_bad
+ 190          ecall 0x012
+ 191          ecall 0x3FF
+ 192      graphics_ok:
+ 193          li16 a0, graphics_pass
+ 194          ecall 0x012
+ 195      
+ 196          li16 a0, all_pass
+ 197          ecall 0x012
+ 198          ecall 0x3FF
+ 199      
+ 200      .data
+ 201      work_area:     .space 8
+ 202      title:         .string "TEST 10 - FULL INTEGRATION CORNER CASES\n"
+ 203      reg_pass:      .string "REGISTER WRAP AND X0: PASS\n"
+ 204      memory_pass:   .string "ODD MEMORY AND SIGN EXTEND: PASS\n"
+ 205      control_pass:  .string "CONTROL FLOW COMPARES: PASS\n"
+ 206      stack_pass:    .string "STACK AND NESTED CALL: PASS\n"
+ 207      service_mark:  .string "SERVICE PRINT CHAR SAMPLE: "
+ 208      service_pass:  .string "RNG KEYBOARD SERVICES: PASS\n"
+ 209      graphics_pass: .string "GRAPHICS EDGE VRAM: PASS\n"
+ 210      all_pass:      .string "TEST 10 RESULT: PASS\n"
+ 211      reg_bad:       .string "TEST 10 RESULT: FAIL AT REGISTERS\n"
+ 212      memory_bad:    .string "TEST 10 RESULT: FAIL AT MEMORY\n"
+ 213      control_bad:   .string "TEST 10 RESULT: FAIL AT CONTROL FLOW\n"
+ 214      stack_bad:     .string "TEST 10 RESULT: FAIL AT STACK OR CALL\n"
+ 215      service_bad:   .string "TEST 10 RESULT: FAIL AT SERVICES\n"
+ 216      graphics_bad:  .string "TEST 10 RESULT: FAIL AT GRAPHICS\n"
+
+Symbol Table:
+------------------------------
+A0                   = 0x0006  (global)
+A1                   = 0x0007  (global)
+CODE_START           = 0x0020  (global)
+MEM_SIZE             = 0x10000  (global)
+MMIO_BASE            = 0xF000  (global)
+RA                   = 0x0001  (global)
+RESET_VECTOR         = 0x0000  (global)
+S0                   = 0x0003  (global)
+S1                   = 0x0004  (global)
+SP                   = 0x0002  (global)
+T0                   = 0x0000  (global)
+T1                   = 0x0005  (global)
+after_functions      = 0x0130  (local)
+all_pass             = 0x80FC  (local)
+call_value_ok        = 0x0108  (local)
+control_bad          = 0x8155  (local)
+control_ok           = 0x00CE  (local)
+control_pass         = 0x806F  (local)
+graphics_bad         = 0x81C4  (local)
+graphics_def_ok      = 0x0192  (local)
+graphics_ok          = 0x01A8  (local)
+graphics_pass        = 0x80E2  (local)
+graphics_tile_ok     = 0x017C  (local)
+inner_function       = 0x012C  (local)
+loop_ok              = 0x00A6  (local)
+low_byte_ok          = 0x0078  (local)
+memory_bad           = 0x8135  (local)
+memory_ok            = 0x0088  (local)
+memory_pass          = 0x804D  (local)
+odd_word_ok          = 0x0068  (local)
+outer_function       = 0x011E  (local)
+pop_value_ok         = 0x00F8  (local)
+push_sp_ok           = 0x00EA  (local)
+reg_bad              = 0x8112  (local)
+reg_pass             = 0x8031  (local)
+register_ok          = 0x004C  (local)
+rng_ok               = 0x0154  (local)
+service_bad          = 0x81A2  (local)
+service_mark         = 0x80A9  (local)
+service_pass         = 0x80C5  (local)
+services_ok          = 0x0162  (local)
+signed_compare_ok    = 0x00BA  (local)
+stack_bad            = 0x817B  (local)
+stack_ok             = 0x0116  (local)
+stack_pass           = 0x808C  (local)
+start                = 0x0020  (local)
+sum_loop             = 0x0092  (local)
+title                = 0x8008  (local)
+work_area            = 0x8000  (local)
+writable_x0_ok       = 0x0038  (local)
+
+Statistics:
+  Code size:    406 bytes
+  Data size:    486 bytes
+  BSS size:     0 bytes
+  Total size:   892 bytes
+  Symbols:      52
+  Lines:        216

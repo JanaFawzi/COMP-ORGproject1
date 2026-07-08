@@ -1,0 +1,126 @@
+ZX16 Assembler Listing
+==================================================
+
+   1      # Test 08: RNG, keyboard, and audio services
+   2      # It checks deterministic RNG output, keyboard no-key reads, and calls audio ECALLs.
+   3      
+   4      .text
+   5      
+   6      start:
+   7          li16 a0, title
+   8          ecall 0x012
+   9      
+  10          # The default seed 0xACE1 must produce the documented xorshift sequence.
+  11          li16 a0, 0xACE1
+  12          ecall 0x020
+  13      
+  14          ecall 0x021
+  15          li16 x3, 0xD30F
+  16          beq a0, x3, rng_1_ok
+  17          j rng_fail
+  18      rng_1_ok:
+  19          ecall 0x021
+  20          li16 x3, 0xF1A5
+  21          beq a0, x3, rng_2_ok
+  22          j rng_fail
+  23      rng_2_ok:
+  24          ecall 0x021
+  25          li16 x3, 0x1734
+  26          beq a0, x3, rng_3_ok
+  27          j rng_fail
+  28      rng_3_ok:
+  29          li16 a0, rng_pass
+  30          ecall 0x012
+  31      
+  32          # A zero seed stays zero after random generation.
+  33          li a0, 0
+  34          ecall 0x020
+  35          ecall 0x021
+  36          li x3, 0
+  37          beq a0, x3, zero_seed_ok
+  38          j rng_fail
+  39      zero_seed_ok:
+  40          li16 a0, zero_seed_pass
+  41          ecall 0x012
+  42      
+  43          # In an unattended assembly run no key is pressed, so keyboard returns 0.
+  44          ecall 0x030
+  45          li x3, 0
+  46          beq a0, x3, keyboard_ok
+  47          j keyboard_fail
+  48      keyboard_ok:
+  49          li16 a0, keyboard_pass
+  50          ecall 0x012
+  51      
+  52          # Audio services are stateful in the host. This program issues valid
+  53          # requests; the C++ unit tests inspect the pending tone/volume/stop state.
+  54          li16 a0, 440
+  55          li16 a1, 250
+  56          ecall 0x040
+  57          li a0, 50
+  58          ecall 0x041
+  59          ecall 0x042
+  60          li16 a0, audio_pass
+  61          ecall 0x012
+  62      
+  63          li16 a0, all_pass
+  64          ecall 0x012
+  65          ecall 0x3FF
+  66      
+  67      rng_fail:
+  68          li16 a0, rng_bad
+  69          ecall 0x012
+  70          ecall 0x3FF
+  71      keyboard_fail:
+  72          li16 a0, keyboard_bad
+  73          ecall 0x012
+  74          ecall 0x3FF
+  75      
+  76      .data
+  77      title:          .string "TEST 08 - RNG KEYBOARD AUDIO\n"
+  78      rng_pass:       .string "RNG DEFAULT SEQUENCE: PASS\n"
+  79      zero_seed_pass: .string "RNG ZERO SEED: PASS\n"
+  80      keyboard_pass:  .string "KEYBOARD NO KEY: PASS\n"
+  81      audio_pass:     .string "TONE VOLUME STOP AUDIO: PASS\n"
+  82      all_pass:       .string "TEST 08 RESULT: PASS\n"
+  83      rng_bad:        .string "TEST 08 RESULT: FAIL AT RNG\n"
+  84      keyboard_bad:   .string "TEST 08 RESULT: FAIL AT KEYBOARD\n"
+
+Symbol Table:
+------------------------------
+A0                   = 0x0006  (global)
+A1                   = 0x0007  (global)
+CODE_START           = 0x0020  (global)
+MEM_SIZE             = 0x10000  (global)
+MMIO_BASE            = 0xF000  (global)
+RA                   = 0x0001  (global)
+RESET_VECTOR         = 0x0000  (global)
+S0                   = 0x0003  (global)
+S1                   = 0x0004  (global)
+SP                   = 0x0002  (global)
+T0                   = 0x0000  (global)
+T1                   = 0x0005  (global)
+all_pass             = 0x8084  (local)
+audio_pass           = 0x8066  (local)
+keyboard_bad         = 0x80B7  (local)
+keyboard_fail        = 0x0096  (local)
+keyboard_ok          = 0x006A  (local)
+keyboard_pass        = 0x804F  (local)
+rng_1_ok             = 0x0036  (local)
+rng_2_ok             = 0x0040  (local)
+rng_3_ok             = 0x004A  (local)
+rng_bad              = 0x809A  (local)
+rng_fail             = 0x008E  (local)
+rng_pass             = 0x801E  (local)
+start                = 0x0020  (local)
+title                = 0x8000  (local)
+zero_seed_ok         = 0x005C  (local)
+zero_seed_pass       = 0x803A  (local)
+
+Statistics:
+  Code size:    126 bytes
+  Data size:    217 bytes
+  BSS size:     0 bytes
+  Total size:   343 bytes
+  Symbols:      30
+  Lines:        84

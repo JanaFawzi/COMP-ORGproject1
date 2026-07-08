@@ -1,0 +1,203 @@
+ZX16 Assembler Listing
+==================================================
+
+   1      # Test 09: graphics VRAM
+   2      # It checks tile map, tile definitions, palette bytes, nibbles, and RGB332 math.
+   3      
+   4      .text
+   5      
+   6      start:
+   7          li16 a0, title
+   8          ecall 0x012
+   9      
+  10          # Tile map covers 20x15 cells from 0xF000 through 0xF12B.
+  11          li16 x3, 0xF000
+  12          li x4, 1
+  13          sb x4, 0(x3)
+  14          lbu x5, 0(x3)
+  15          beq x5, x4, tile_first_ok
+  16          j tile_map_fail
+  17      tile_first_ok:
+  18          li16 x3, 0xF128
+  19          li x4, 15
+  20          sb x4, 3(x3)
+  21          lbu x5, 3(x3)
+  22          beq x5, x4, tile_map_ok
+  23          j tile_map_fail
+  24      tile_map_ok:
+  25          li16 a0, tile_map_pass
+  26          ecall 0x012
+  27      
+  28          # Tile 0 starts at 0xF200, tile 15 ends at 0xF9FF.
+  29          li16 x3, 0xF200
+  30          li16 x4, 0x0021
+  31          sb x4, 0(x3)
+  32          lbu x5, 0(x3)
+  33          beq x5, x4, tile_def_first_ok
+  34          j tile_def_fail
+  35      tile_def_first_ok:
+  36          li16 x3, 0xF9F8
+  37          li16 x4, 0x00AB
+  38          sb x4, 7(x3)
+  39          lbu x5, 7(x3)
+  40          beq x5, x4, tile_def_ok
+  41          j tile_def_fail
+  42      tile_def_ok:
+  43          li16 a0, tile_def_pass
+  44          ecall 0x012
+  45      
+  46          # In one tile byte, even x uses the low nibble and odd x uses the high nibble.
+  47          li16 x3, 0xF200
+  48          lbu x4, 0(x3)
+  49          mv x5, x4
+  50          andi x5, 0x0F
+  51          li x0, 1
+  52          beq x5, x0, low_nibble_ok
+  53          j nibble_fail
+  54      low_nibble_ok:
+  55          srli x4, 4
+  56          andi x4, 0x0F
+  57          li x0, 2
+  58          beq x4, x0, nibble_ok
+  59          j nibble_fail
+  60      nibble_ok:
+  61          li16 a0, nibble_pass
+  62          ecall 0x012
+  63      
+  64          # Palette is 16 RGB332 bytes at 0xFA00 through 0xFA0F.
+  65          li16 x3, 0xFA00
+  66          li16 x4, 0x00E3
+  67          sb x4, 0(x3)
+  68          lbu x5, 0(x3)
+  69          beq x5, x4, palette_first_ok
+  70          j palette_fail
+  71      palette_first_ok:
+  72          li16 x3, 0xFA08
+  73          li16 x4, 0x001C
+  74          sb x4, 7(x3)
+  75          lbu x5, 7(x3)
+  76          beq x5, x4, palette_ok
+  77          j palette_fail
+  78      palette_ok:
+  79          li16 a0, palette_pass
+  80          ecall 0x012
+  81      
+  82          # RGB332 full-intensity channels expand to 0xFF.
+  83          li x3, 7
+  84          mv x4, x3
+  85          slli x3, 5
+  86          slli x4, 2
+  87          or x3, x4
+  88          li x4, 7
+  89          srli x4, 1
+  90          or x3, x4
+  91          li16 x4, 0x00FF
+  92          beq x3, x4, red_expand_ok
+  93          j rgb_fail
+  94      red_expand_ok:
+  95          li x3, 3
+  96          mv x4, x3
+  97          slli x3, 6
+  98          slli x4, 4
+  99          or x3, x4
+ 100          li x4, 3
+ 101          slli x4, 2
+ 102          or x3, x4
+ 103          li x4, 3
+ 104          or x3, x4
+ 105          li16 x4, 0x00FF
+ 106          beq x3, x4, rgb_ok
+ 107          j rgb_fail
+ 108      rgb_ok:
+ 109          li16 a0, rgb_pass
+ 110          ecall 0x012
+ 111      
+ 112          li16 a0, all_pass
+ 113          ecall 0x012
+ 114          ecall 0x3FF
+ 115      
+ 116      tile_map_fail:
+ 117          li16 a0, tile_map_bad
+ 118          ecall 0x012
+ 119          ecall 0x3FF
+ 120      tile_def_fail:
+ 121          li16 a0, tile_def_bad
+ 122          ecall 0x012
+ 123          ecall 0x3FF
+ 124      nibble_fail:
+ 125          li16 a0, nibble_bad
+ 126          ecall 0x012
+ 127          ecall 0x3FF
+ 128      palette_fail:
+ 129          li16 a0, palette_bad
+ 130          ecall 0x012
+ 131          ecall 0x3FF
+ 132      rgb_fail:
+ 133          li16 a0, rgb_bad
+ 134          ecall 0x012
+ 135          ecall 0x3FF
+ 136      
+ 137      .data
+ 138      title:         .string "TEST 09 - GRAPHICS VRAM\n"
+ 139      tile_map_pass: .string "TILE MAP 0XF000 TO 0XF12B: PASS\n"
+ 140      tile_def_pass: .string "TILE DEFINITIONS 0XF200 TO 0XF9FF: PASS\n"
+ 141      nibble_pass:   .string "TILE NIBBLE ORDER LOW HIGH: PASS\n"
+ 142      palette_pass:  .string "PALETTE RGB332 BYTES: PASS\n"
+ 143      rgb_pass:      .string "RGB332 EXPANSION MATH: PASS\n"
+ 144      all_pass:      .string "TEST 09 RESULT: PASS\n"
+ 145      tile_map_bad:  .string "TEST 09 RESULT: FAIL AT TILE MAP\n"
+ 146      tile_def_bad:  .string "TEST 09 RESULT: FAIL AT TILE DEFINITIONS\n"
+ 147      nibble_bad:    .string "TEST 09 RESULT: FAIL AT NIBBLE ORDER\n"
+ 148      palette_bad:   .string "TEST 09 RESULT: FAIL AT PALETTE\n"
+ 149      rgb_bad:       .string "TEST 09 RESULT: FAIL AT RGB332 EXPANSION\n"
+
+Symbol Table:
+------------------------------
+A0                   = 0x0006  (global)
+A1                   = 0x0007  (global)
+CODE_START           = 0x0020  (global)
+MEM_SIZE             = 0x10000  (global)
+MMIO_BASE            = 0xF000  (global)
+RA                   = 0x0001  (global)
+RESET_VECTOR         = 0x0000  (global)
+S0                   = 0x0003  (global)
+S1                   = 0x0004  (global)
+SP                   = 0x0002  (global)
+T0                   = 0x0000  (global)
+T1                   = 0x0005  (global)
+all_pass             = 0x80BE  (local)
+low_nibble_ok        = 0x007E  (local)
+nibble_bad           = 0x8120  (local)
+nibble_fail          = 0x0106  (local)
+nibble_ok            = 0x0088  (local)
+nibble_pass          = 0x8063  (local)
+palette_bad          = 0x8146  (local)
+palette_fail         = 0x010E  (local)
+palette_first_ok     = 0x009E  (local)
+palette_ok           = 0x00AE  (local)
+palette_pass         = 0x8085  (local)
+red_expand_ok        = 0x00CC  (local)
+rgb_bad              = 0x8167  (local)
+rgb_fail             = 0x0116  (local)
+rgb_ok               = 0x00E8  (local)
+rgb_pass             = 0x80A1  (local)
+start                = 0x0020  (local)
+tile_def_bad         = 0x80F6  (local)
+tile_def_fail        = 0x00FE  (local)
+tile_def_first_ok    = 0x0058  (local)
+tile_def_ok          = 0x0068  (local)
+tile_def_pass        = 0x803A  (local)
+tile_first_ok        = 0x0034  (local)
+tile_map_bad         = 0x80D4  (local)
+tile_map_fail        = 0x00F6  (local)
+tile_map_ok          = 0x0042  (local)
+tile_map_pass        = 0x8019  (local)
+title                = 0x8000  (local)
+
+Statistics:
+  Code size:    254 bytes
+  Data size:    401 bytes
+  BSS size:     0 bytes
+  Total size:   655 bytes
+  Symbols:      42
+  Lines:        149
