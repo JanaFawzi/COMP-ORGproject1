@@ -54,6 +54,10 @@ void CPU::setSP(unsigned short value) {
     registers.setRegister(2, value);
 }
 
+bool CPU::isWordAlignedAddress(unsigned short address) {
+    return (address & 0x0001) == 0;
+}
+
 unsigned short CPU::fetch() {
     unsigned short instruction = memory.read16(pc);
 
@@ -756,6 +760,18 @@ void CPU::handleRType(DecodedInstruction instruction) {
         registers.setRegister(instruction.rd, result);
     }
 
+    if (instruction.funct4 == 0x2) {
+        short rdSigned = (short)rdValue;
+        short rs2Signed = (short)rs2Value;
+        result = rdSigned < rs2Signed ? 1 : 0;
+        registers.setRegister(instruction.rd, result);
+    }
+
+    if (instruction.funct4 == 0x3) {
+        result = rdValue < rs2Value ? 1 : 0;
+        registers.setRegister(instruction.rd, result);
+    }
+
     if (instruction.funct4 == 0x4) {
         int amount = rs2Value & 15;
         result = rdValue << amount;
@@ -803,6 +819,10 @@ void CPU::handleRType(DecodedInstruction instruction) {
         registers.setRegister(instruction.rd, result);
     }
 
+    if (instruction.funct4 == 0xA) {
+        registers.setRegister(instruction.rd, rs2Value);
+    }
+
     if (instruction.funct4 == 0xB) {
         pc = rdValue;
     }
@@ -818,25 +838,64 @@ void CPU::handleIType(DecodedInstruction instruction) {
 
     unsigned short rdValue = registers.getRegister(instruction.rd);
     unsigned short result = 0;
+    unsigned short immMask = (instruction.word >> 9) & 0x007F;
 
     if (instruction.func3 == 0x0) {
         result = rdValue + instruction.immediate;
         registers.setRegister(instruction.rd, result);
     }
 
+    if (instruction.func3 == 0x1) {
+        result = (short)rdValue < (short)instruction.immediate ? 1 : 0;
+        registers.setRegister(instruction.rd, result);
+    }
+
+    if (instruction.func3 == 0x2) {
+        result = rdValue < (unsigned short)instruction.immediate ? 1 : 0;
+        registers.setRegister(instruction.rd, result);
+    }
+
+    if (instruction.func3 == 0x3) {
+        int shiftType = (immMask >> 4) & 0x7;
+        int amount = immMask & 0xF;
+
+        if (shiftType == 0x1) {
+            result = (unsigned short)(rdValue << amount);
+            registers.setRegister(instruction.rd, result);
+        }
+
+        if (shiftType == 0x2) {
+            result = (unsigned short)(rdValue >> amount);
+            registers.setRegister(instruction.rd, result);
+        }
+
+        if (shiftType == 0x4) {
+            if (amount == 0) {
+                result = rdValue;
+            }
+            else {
+                unsigned int shifted = rdValue >> amount;
+                if ((rdValue & 0x8000) != 0) {
+                    shifted |= 0xFFFFu << (16 - amount);
+                }
+                result = (unsigned short)shifted;
+            }
+            registers.setRegister(instruction.rd, result);
+        }
+    }
+
     if (instruction.func3 == 0x4) {
-        unsigned short immMask = (instruction.word >> 9) & 0x007F;
         result = rdValue | immMask;
         registers.setRegister(instruction.rd, result);
     }
 
     if (instruction.func3 == 0x5) {
-        result = rdValue & (unsigned short)instruction.immediate;
+        result = rdValue & immMask;
         registers.setRegister(instruction.rd, result);
     }
 
     if (instruction.func3 == 0x6) {
-        result = rdValue ^ (unsigned short)instruction.immediate;
+        result = rdValue ^ immMask;
         registers.setRegister(instruction.rd, result);
     }
 
@@ -922,7 +981,7 @@ void CPU::handleSType(DecodedInstruction instruction) {
         memory.write8(address, rs2Value & 0x00FF);
     }
 
-    if (instruction.func3 == 0x1) {
+    if (instruction.func3 == 0x1 && isWordAlignedAddress(address)) {
         memory.write16(address, rs2Value);
     }
 }
@@ -947,7 +1006,7 @@ void CPU::handleLType(DecodedInstruction instruction) {
         registers.setRegister(instruction.rd, result);
     }
 
-    if (instruction.func3 == 0x1) {
+    if (instruction.func3 == 0x1 && isWordAlignedAddress(address)) {
         result = memory.read16(address);
         registers.setRegister(instruction.rd, result);
     }
@@ -970,6 +1029,15 @@ void CPU::handleJType(DecodedInstruction instruction) {
 
 void CPU::handleUType(DecodedInstruction instruction) {
     lastHandler = ZX16::U_TYPE;
+
+    unsigned short result = (unsigned short)instruction.immediate;
+
+    if (instruction.upperFlag == 1) {
+        unsigned short instructionAddress = (unsigned short)(pc - 2);
+        result = (unsigned short)(instructionAddress + result);
+    }
+
+    registers.setRegister(instruction.rd, result);
 }
 
 void CPU::handleSysType(DecodedInstruction instruction) {

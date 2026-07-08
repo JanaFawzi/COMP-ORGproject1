@@ -1,0 +1,151 @@
+ZX16 Assembler Listing
+==================================================
+
+   1      # Test 01: arithmetic and registers
+   2      # The program checks its own results and prints PASS or FAIL.
+   3      
+   4      .text
+   5      
+   6      start:
+   7          li16 a0, title
+   8          ecall 0x012
+   9      
+  10          # ADD: 20 + 22 = 42
+  11          li x3, 20
+  12          li x4, 22
+  13          add x3, x4
+  14          li x4, 42
+  15          beq x3, x4, add_ok
+  16          j add_fail
+  17      add_ok:
+  18          li16 a0, add_pass
+  19          ecall 0x012
+  20      
+  21          # SUB: 50 - 8 = 42
+  22          li x3, 50
+  23          li x4, 8
+  24          sub x3, x4
+  25          li x4, 42
+  26          beq x3, x4, sub_ok
+  27          j sub_fail
+  28      sub_ok:
+  29          li16 a0, sub_pass
+  30          ecall 0x012
+  31      
+  32          # MV copies the complete register value.
+  33          li16 x3, 0xBEEF
+  34          mv x5, x3
+  35          beq x5, x3, mv_ok
+  36          j mv_fail
+  37      mv_ok:
+  38          li16 a0, mv_pass
+  39          ecall 0x012
+  40      
+  41          # x0 is writable and its stored value can be read again.
+  42          li x0, 7
+  43          li x4, 5
+  44          add x0, x4
+  45          li x3, 0
+  46          add x3, x0
+  47          li x4, 12
+  48          beq x3, x4, x0_ok
+  49          j x0_fail
+  50      x0_ok:
+  51          li16 a0, x0_pass
+  52          ecall 0x012
+  53      
+  54          # 16-bit arithmetic wraps: 0xFFFF + 1 = 0.
+  55          li16 x3, 0xFFFF
+  56          li x4, 1
+  57          add x3, x4
+  58          li x4, 0
+  59          beq x3, x4, wrap_ok
+  60          j wrap_fail
+  61      wrap_ok:
+  62          li16 a0, wrap_pass
+  63          ecall 0x012
+  64      
+  65          li16 a0, all_pass
+  66          ecall 0x012
+  67          ecall 0x3FF
+  68      
+  69      add_fail:
+  70          li16 a0, add_bad
+  71          ecall 0x012
+  72          ecall 0x3FF
+  73      sub_fail:
+  74          li16 a0, sub_bad
+  75          ecall 0x012
+  76          ecall 0x3FF
+  77      mv_fail:
+  78          li16 a0, mv_bad
+  79          ecall 0x012
+  80          ecall 0x3FF
+  81      x0_fail:
+  82          li16 a0, x0_bad
+  83          ecall 0x012
+  84          ecall 0x3FF
+  85      wrap_fail:
+  86          li16 a0, wrap_bad
+  87          ecall 0x012
+  88          ecall 0x3FF
+  89      
+  90      .data
+  91      title:      .string "TEST 01 - ARITHMETIC AND REGISTERS\n"
+  92      add_pass:   .string "ADD: PASS\n"
+  93      sub_pass:   .string "SUB: PASS\n"
+  94      mv_pass:    .string "MV: PASS\n"
+  95      x0_pass:    .string "WRITABLE X0: PASS\n"
+  96      wrap_pass:  .string "16-BIT WRAP: PASS\n"
+  97      all_pass:   .string "TEST 01 RESULT: PASS\n"
+  98      add_bad:    .string "TEST 01 RESULT: FAIL AT ADD\n"
+  99      sub_bad:    .string "TEST 01 RESULT: FAIL AT SUB\n"
+ 100      mv_bad:     .string "TEST 01 RESULT: FAIL AT MV\n"
+ 101      x0_bad:     .string "TEST 01 RESULT: FAIL AT X0\n"
+ 102      wrap_bad:   .string "TEST 01 RESULT: FAIL AT WRAP\n"
+
+Symbol Table:
+------------------------------
+A0                   = 0x0006  (global)
+A1                   = 0x0007  (global)
+CODE_START           = 0x0020  (global)
+MEM_SIZE             = 0x10000  (global)
+MMIO_BASE            = 0xF000  (global)
+RA                   = 0x0001  (global)
+RESET_VECTOR         = 0x0000  (global)
+S0                   = 0x0003  (global)
+S1                   = 0x0004  (global)
+SP                   = 0x0002  (global)
+T0                   = 0x0000  (global)
+T1                   = 0x0005  (global)
+add_bad              = 0x8080  (local)
+add_fail             = 0x008C  (local)
+add_ok               = 0x0032  (local)
+add_pass             = 0x8024  (local)
+all_pass             = 0x806A  (local)
+mv_bad               = 0x80BA  (local)
+mv_fail              = 0x009C  (local)
+mv_ok                = 0x0054  (local)
+mv_pass              = 0x803A  (local)
+start                = 0x0020  (local)
+sub_bad              = 0x809D  (local)
+sub_fail             = 0x0094  (local)
+sub_ok               = 0x0044  (local)
+sub_pass             = 0x802F  (local)
+title                = 0x8000  (local)
+wrap_bad             = 0x80F2  (local)
+wrap_fail            = 0x00AC  (local)
+wrap_ok              = 0x007E  (local)
+wrap_pass            = 0x8057  (local)
+x0_bad               = 0x80D6  (local)
+x0_fail              = 0x00A4  (local)
+x0_ok                = 0x006A  (local)
+x0_pass              = 0x8044  (local)
+
+Statistics:
+  Code size:    148 bytes
+  Data size:    272 bytes
+  BSS size:     0 bytes
+  Total size:   420 bytes
+  Symbols:      37
+  Lines:        102

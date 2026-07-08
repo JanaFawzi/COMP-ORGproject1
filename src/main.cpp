@@ -36,6 +36,22 @@ unsigned short makeJ(int linkFlag, int immLow3, int immHigh6, int rd) {
     return (linkFlag << 15) | ((immHigh6 & 0x3F) << 9) | (rd << 6) | ((immLow3 & 0x7) << 3) | 5;
 }
 
+unsigned short makeJOffset(int offset, int rd = 0, int linkFlag = 0) {
+    unsigned int encodedOffset = (unsigned int)offset & 0x03FF;
+    return makeJ(linkFlag,
+                 (encodedOffset >> 1) & 0x7,
+                 (encodedOffset >> 4) & 0x3F,
+                 rd);
+}
+
+unsigned short makeU(int upperFlag, int imm9, int rd) {
+    return (upperFlag << 15) |
+           (((imm9 >> 3) & 0x3F) << 9) |
+           (rd << 6) |
+           ((imm9 & 0x7) << 3) |
+           6;
+}
+
 unsigned short makeSys(int service) {
     return ((service & 0x3FF) << 6) | 7;
 }
@@ -2053,6 +2069,27 @@ void testRegisterFile() {
     printf("[PASS] Register file test passed\n");
 }
 
+void testX0GeneralPurposeExecution() {
+    CPU cpu;
+
+    cpu.getRegisters().setRegister(0, 5);
+    cpu.getRegisters().setRegister(1, 7);
+
+    cpu.getMemory().write16(0x0020, makeR(0x0, 1, 0, 0));
+    cpu.step();
+
+    assert(cpu.getRegisters().getRegister(0) == 12);
+
+    cpu.getRegisters().setRegister(3, 1);
+    cpu.getMemory().write16(0x0022, makeR(0x0, 0, 3, 0));
+    cpu.step();
+
+    assert(cpu.getRegisters().getRegister(3) == 13);
+    assert(cpu.getRegisters().getRegister(0) == 12);
+
+    printf("[PASS] x0 general-purpose execution test passed\n");
+}
+
 void testCPUReset() {
     CPU cpu;
 
@@ -2385,6 +2422,24 @@ void testShiftExecution() {
     printf("[PASS] Shift operations test passed\n");
 }
 
+void testSignedUnsignedComparisonExecution() {
+    CPU cpu;
+
+    cpu.getRegisters().setRegister(3, 0xFFFF);
+    cpu.getRegisters().setRegister(4, 0x0001);
+    cpu.getMemory().write16(0x0020, makeR(0x2, 4, 3, 0));
+    cpu.step();
+    assert(cpu.getRegisters().getRegister(3) == 1);
+
+    cpu.getRegisters().setRegister(5, 0xFFFF);
+    cpu.getRegisters().setRegister(6, 0x0001);
+    cpu.getMemory().write16(0x0022, makeR(0x3, 6, 5, 0));
+    cpu.step();
+    assert(cpu.getRegisters().getRegister(5) == 0);
+
+    printf("[PASS] SLT/SLTU signedness test passed\n");
+}
+
 void testAddiExecution() {
     CPU cpu;
 
@@ -2402,6 +2457,11 @@ void testAddiExecution() {
     cpu.getMemory().write16(0x0024, makeI(0x40, 5, 0));
     cpu.step();
     assert(cpu.getRegisters().getRegister(5) == 36);
+
+    cpu.getRegisters().setRegister(6, 1);
+    cpu.getMemory().write16(0x0026, makeI(0x3F, 6, 0));
+    cpu.step();
+    assert(cpu.getRegisters().getRegister(6) == 64);
 
     printf("[PASS] ADDI test passed\n");
 }
@@ -2422,9 +2482,33 @@ void testImmediateLogicExecution() {
     cpu.getRegisters().setRegister(7, 0xAAAA);
     cpu.getMemory().write16(0x0024, makeI(0x7F, 7, 6));
     cpu.step();
-    assert(cpu.getRegisters().getRegister(7) == 0x5555);
+    assert(cpu.getRegisters().getRegister(7) == 0xAAD5);
+
+    cpu.getRegisters().setRegister(1, 0xFFFF);
+    cpu.getMemory().write16(0x0026, makeI(0x7F, 1, 5));
+    cpu.step();
+    assert(cpu.getRegisters().getRegister(1) == 0x007F);
 
     printf("[PASS] Immediate logic test passed\n");
+}
+
+void testUpperImmediateExecution() {
+    CPU cpu;
+
+    cpu.getMemory().write16(0x0020, makeU(0, 0x1AB, 3));
+    cpu.step();
+    assert(cpu.getRegisters().getRegister(3) == 0xD580);
+
+    cpu.getMemory().write16(0x0022, makeU(0, 0x1FF, 4));
+    cpu.step();
+    assert(cpu.getRegisters().getRegister(4) == 0xFF80);
+
+    cpu.setPC(0x1000);
+    cpu.getMemory().write16(0x1000, makeU(1, 1, 5));
+    cpu.step();
+    assert(cpu.getRegisters().getRegister(5) == 0x1080);
+
+    printf("[PASS] LUI/AUIPC immediate treatment test passed\n");
 }
 
 void testLiExecution() {
@@ -2511,6 +2595,60 @@ void testStoreExecution() {
     printf("[PASS] Store test passed\n");
 }
 
+void testMemoryAndStackEdgeCases() {
+    CPU cpu;
+
+    assert(CPU::isWordAlignedAddress(0x3000) == true);
+    assert(CPU::isWordAlignedAddress(0x3001) == false);
+
+    // Odd-address SW is rejected and must not change either neighbouring byte.
+    cpu.getMemory().write8(0x3001, 0xAA);
+    cpu.getMemory().write8(0x3002, 0xBB);
+    cpu.getRegisters().setRegister(3, 0x3001);
+    cpu.getRegisters().setRegister(4, 0xBEEF);
+    cpu.getMemory().write16(0x0020, makeS(0, 4, 3, 1));
+    cpu.step();
+    assert(cpu.getMemory().read8(0x3001) == 0xAA);
+    assert(cpu.getMemory().read8(0x3002) == 0xBB);
+
+    // Odd-address LW is rejected and must preserve its destination register.
+    cpu.getRegisters().setRegister(5, 0xCAFE);
+    cpu.getMemory().write16(0x0022, makeL(0, 3, 5, 1));
+    cpu.step();
+    assert(cpu.getRegisters().getRegister(5) == 0xCAFE);
+
+    // An aligned CPU word store reaches the memory-mapped tile map directly.
+    cpu.setPC(0x0100);
+    cpu.getRegisters().setRegister(3, GraphicsMemory::TILE_MAP_BASE);
+    cpu.getRegisters().setRegister(4, 0x0201);
+    cpu.getMemory().write16(0x0100, makeS(0, 4, 3, 1));
+    cpu.step();
+
+    GraphicsMemory graphics(cpu.getMemory());
+    assert(graphics.readTileIndex(0, 0) == 1);
+    assert(graphics.readTileIndex(1, 0) == 2);
+
+    // The project stack is full-descending: PUSH pre-decrements SP by two,
+    // then stores at the new aligned address below the graphics region.
+    CPU stackCpu;
+    assert(stackCpu.getSP() == GraphicsMemory::PROJECT_STACK_RESET);
+    assert(stackCpu.getSP() < GraphicsMemory::GRAPHICS_BASE);
+
+    stackCpu.getRegisters().setRegister(3, 0xBEEF);
+    stackCpu.getMemory().write16(0x0020, makeI(-2, 2, 0));
+    stackCpu.getMemory().write16(0x0022, makeS(0, 3, 2, 1));
+    stackCpu.step();
+    stackCpu.step();
+
+    assert(stackCpu.getSP() == 0xEFFC);
+    assert(CPU::isWordAlignedAddress(stackCpu.getSP()) == true);
+    assert(stackCpu.getSP() < GraphicsMemory::GRAPHICS_BASE);
+    assert(stackCpu.getMemory().read16(0xEFFC) == 0xBEEF);
+    assert(stackCpu.getMemory().read16(GraphicsMemory::GRAPHICS_BASE) == 0x0000);
+
+    printf("[PASS] Memory/stack edge-case test passed\n");
+}
+
 void testBeqBneExecution() {
     CPU cpu;
 
@@ -2570,6 +2708,43 @@ void testRemainingBranchesExecution() {
     assert(cpu.getPC() == 0x1806);
 
     printf("[PASS] Remaining branches test passed\n");
+}
+
+void testControlFlowBoundaries() {
+    CPU cpu;
+
+    // B targets are relative to PC+2 and have the exact range -16..+14.
+    cpu.setPC(0x1000);
+    cpu.getRegisters().setRegister(3, 0);
+    cpu.getMemory().write16(0x1000, makeB(7, 0, 3, 2));
+    cpu.step();
+    assert(cpu.getPC() == 0x1010); // 0x1000 + 2 + 14
+
+    cpu.setPC(0x1200);
+    cpu.getRegisters().setRegister(3, 0);
+    cpu.getMemory().write16(0x1200, makeB(8, 0, 3, 2));
+    cpu.step();
+    assert(cpu.getPC() == 0x11F2); // 0x1200 + 2 - 16
+
+    // J targets are relative to PC+2 and have the exact range -512..+510.
+    cpu.setPC(0x2000);
+    cpu.getMemory().write16(0x2000, makeJOffset(510));
+    cpu.step();
+    assert(cpu.getPC() == 0x2200); // 0x2000 + 2 + 510
+
+    cpu.setPC(0x2400);
+    cpu.getMemory().write16(0x2400, makeJOffset(-512));
+    cpu.step();
+    assert(cpu.getPC() == 0x2202); // 0x2400 + 2 - 512
+
+    // JAL stores PC+2 as the return address before taking the jump.
+    cpu.setPC(0x2800);
+    cpu.getMemory().write16(0x2800, makeJOffset(510, 1, 1));
+    cpu.step();
+    assert(cpu.getRegisters().getRegister(1) == 0x2802);
+    assert(cpu.getPC() == 0x2A00);
+
+    printf("[PASS] Control-flow boundary test passed\n");
 }
 
 void testJumpExecution() {
@@ -2632,6 +2807,17 @@ void testEcallPrintIntExecution() {
     cpu.step();
 
     assert(strcmp(cpu.getOutput(), "-32768") == 0);
+
+    cpu.clearOutput();
+    cpu.setPC(0x1300);
+    cpu.getRegisters().setRegister(6, 0x7FFF);
+    cpu.getRegisters().setRegister(7, 0xBEEF);
+    cpu.getMemory().write16(0x1300, word);
+    cpu.step();
+
+    assert(strcmp(cpu.getOutput(), "32767") == 0);
+    assert(cpu.getRegisters().getRegister(6) == 0x7FFF);
+    assert(cpu.getRegisters().getRegister(7) == 0xBEEF);
 
     printf("\n[PASS] ECALL print_int test passed\n");
 }
@@ -2971,10 +3157,12 @@ void testAllEcallServicesTogether() {
     cpu.getRegisters().setRegister(6, (unsigned short)-7);
     cpu.step();
     assert(strcmp(cpu.getOutput(), "-7") == 0);
+    assert(cpu.getRegisters().getRegister(6) == (unsigned short)-7);
 
     cpu.getRegisters().setRegister(6, ' ');
     cpu.step();
     assert(strcmp(cpu.getOutput(), "-7 ") == 0);
+    assert(cpu.getRegisters().getRegister(6) == ' ');
 
     cpu.setInput("ZX16\n");
     cpu.getRegisters().setRegister(6, 0x6000);
@@ -2985,6 +3173,8 @@ void testAllEcallServicesTogether() {
     assert(cpu.getMemory().read8(0x6002) == '1');
     assert(cpu.getMemory().read8(0x6003) == '6');
     assert(cpu.getMemory().read8(0x6004) == 0);
+    assert(cpu.getRegisters().getRegister(6) == 4);  // a0 returns bytes written
+    assert(cpu.getRegisters().getRegister(7) == 16); // a1 remains max length
 
     cpu.setInput("42");
     cpu.step();
@@ -2993,17 +3183,21 @@ void testAllEcallServicesTogether() {
     cpu.getRegisters().setRegister(6, 0x6000);
     cpu.step();
     assert(strcmp(cpu.getOutput(), "-7 ZX16") == 0);
+    assert(cpu.getRegisters().getRegister(6) == 0x6000);
 
     cpu.getRegisters().setRegister(6, 0x1234);
     cpu.step();
     assert(cpu.getRngState() == 0x1234);
+    assert(cpu.getRegisters().getRegister(6) == 0x1234);
 
     cpu.step();
     assert(cpu.getRegisters().getRegister(6) == 0x3830);
+    assert(cpu.getRegisters().getRegister(7) == 16);
 
     cpu.setKeyboardKey(CPU::ZX16_KEY_RIGHT);
     cpu.step();
     assert(cpu.getRegisters().getRegister(6) == CPU::ZX16_KEY_RIGHT);
+    assert(cpu.getRegisters().getRegister(7) == 16);
 
     cpu.getRegisters().setRegister(6, 440);
     cpu.getRegisters().setRegister(7, 200);
@@ -3011,23 +3205,33 @@ void testAllEcallServicesTogether() {
     assert(cpu.hasPendingTone() == true);
     assert(cpu.getToneFrequency() == 440);
     assert(cpu.getToneDurationMs() == 200);
+    assert(cpu.getRegisters().getRegister(6) == 440);
+    assert(cpu.getRegisters().getRegister(7) == 200);
 
     cpu.getRegisters().setRegister(6, 25);
     cpu.step();
     assert(cpu.getVolumePercent() == 25);
+    assert(cpu.getRegisters().getRegister(6) == 25);
+    assert(cpu.getRegisters().getRegister(7) == 200);
 
     cpu.step();
     assert(cpu.hasPendingTone() == false);
     assert(cpu.hasPendingStopAudio() == true);
+    assert(cpu.getRegisters().getRegister(6) == 25);
+    assert(cpu.getRegisters().getRegister(7) == 200);
 
     cpu.step();
     assert(strstr(cpu.getOutput(), "REGS\n") != 0);
+    assert(cpu.getRegisters().getRegister(6) == 25);
+    assert(cpu.getRegisters().getRegister(7) == 200);
 
     cpu.getRegisters().setRegister(6, 0x6000);
     cpu.getRegisters().setRegister(7, 5);
     cpu.step();
     assert(strstr(cpu.getOutput(), "MEM\n") != 0);
     assert(strstr(cpu.getOutput(), "5A 58 31 36 00") != 0);
+    assert(cpu.getRegisters().getRegister(6) == 0x6000);
+    assert(cpu.getRegisters().getRegister(7) == 5);
 
     cpu.step();
     assert(cpu.isHalted() == true);
@@ -3217,8 +3421,15 @@ void testSnakeRuntimeDisplaysEmptyGameScreen() {
     printf("[PASS] Snake runtime empty game screen test passed\n");
 }
 
-void resetWholeSimulator(Gui& gui, CPU& cpu, bool& running, int& runDelay) {
-    loadGuiDemoProgram(cpu);
+void resetWholeSimulator(Gui& gui, CPU& cpu, bool& running, int& runDelay, const char* programPath = 0) {
+    if (programPath != 0) {
+        cpu.reset();
+        ProgramLoader::loadBin(cpu.getMemory(), programPath);
+    }
+    else {
+        loadGuiDemoProgram(cpu);
+    }
+
     cpu.clearBreakpoints();
 
     gui.resetDebugState();
@@ -3233,7 +3444,8 @@ void handleGuiAction(
     GuiAction action,
     bool& running,
     bool& runToCursorActive,
-    int& runDelay
+    int& runDelay,
+    const char* resetProgramPath = 0
 ) {
     if (action == GUI_ACTION_RUN_PAUSE) {
         if (!cpu.isHalted()) {
@@ -3258,7 +3470,7 @@ void handleGuiAction(
     }
 
     if (action == GUI_ACTION_RESET) {
-        resetWholeSimulator(gui, cpu, running, runDelay);
+        resetWholeSimulator(gui, cpu, running, runDelay, resetProgramPath);
         runToCursorActive = false;
         return;
     }
@@ -3919,7 +4131,7 @@ void testCurrentInstructionDisplayed() {
     printf("[PASS] Current instruction displayed test passed\n");
 }
 
-int main() {
+int main(int argc, char* argv[]) {
     testMemory();
     testGraphicsMemoryManager();
     testGraphicsMemoryProtection();
@@ -3966,6 +4178,7 @@ int main() {
     testBreakpointStopsExecution();
 
     testRegisterFile();
+    testX0GeneralPurposeExecution();
     testCPUReset();
     testProgramLoader();
     testFetch();
@@ -3977,16 +4190,20 @@ int main() {
     testAddSubExecution();
     testLogicalExecution();
     testShiftExecution();
+    testSignedUnsignedComparisonExecution();
     testAddiExecution();
     testImmediateLogicExecution();
+    testUpperImmediateExecution();
     testLiExecution();
 
     testByteLoadExecution();
     testWordLoadExecution();
     testStoreExecution();
+    testMemoryAndStackEdgeCases();
 
     testBeqBneExecution();
     testRemainingBranchesExecution();
+    testControlFlowBoundaries();
     testJumpExecution();
 
     testEcallPrintIntExecution();
@@ -4008,10 +4225,42 @@ int main() {
 
 
     CPU guiCpu;
-    loadGuiDemoProgram(guiCpu);
+    bool assemblyTestMode = argc >= 2;
+    bool interactiveAssemblyMode = false;
+    const char* loadedProgramPath = assemblyTestMode ? argv[1] : 0;
+    const char* guiStatus = "All tests passed";
+
+    if (assemblyTestMode) {
+        interactiveAssemblyMode = strstr(argv[1], "snake") != 0 || strstr(argv[1], "Snake") != 0;
+
+        int bytesLoaded = ProgramLoader::loadBin(guiCpu.getMemory(), argv[1]);
+
+        if (bytesLoaded < 0) {
+            fprintf(stderr, "Could not load assembly test: %s\n", argv[1]);
+            return 1;
+        }
+
+        if (interactiveAssemblyMode) {
+            guiStatus = "Interactive assembly loaded";
+        }
+        else {
+            int instructionCount = 0;
+            while (!guiCpu.isHalted() && instructionCount < 10000) {
+                guiCpu.step();
+                instructionCount++;
+            }
+
+            guiStatus = guiCpu.isHalted()
+                ? "Assembly test completed"
+                : "Assembly test stopped at 10000 instructions";
+        }
+    }
+    else {
+        loadGuiDemoProgram(guiCpu);
+    }
 
     Gui gui;
-    gui.open();
+    gui.open(assemblyTestMode);
 
     bool running = false;
     bool runToCursorActive = false;
@@ -4023,7 +4272,7 @@ int main() {
         frameNumber++;
 
         GuiAction action = gui.draw(
-            "All tests passed",
+            guiStatus,
             guiCpu.getOutput(),
             frameNumber,
             running,
@@ -4036,7 +4285,8 @@ int main() {
     action,
     running,
     runToCursorActive,
-            runDelay
+            runDelay,
+            loadedProgramPath
         );
 
         if (action == GUI_ACTION_RESET) {
@@ -4054,19 +4304,22 @@ int main() {
         if (running && !guiCpu.isHalted()) {
             runDelay++;
 
-            if (runDelay >= 30) {
-                bool executed = guiCpu.stepWithBreakpoints();
-                if (runToCursorActive && guiCpu.getPC() == gui.getCursorAddress()) {
-                    running = false;
-                    runToCursorActive = false;
+            int runDelayLimit = interactiveAssemblyMode ? 1 : 30;
+            int stepsPerRunTick = interactiveAssemblyMode ? 2000 : 1;
+
+            if (runDelay >= runDelayLimit) {
+                for (int stepIndex = 0; stepIndex < stepsPerRunTick && running && !guiCpu.isHalted(); stepIndex++) {
+                    bool executed = guiCpu.stepWithBreakpoints();
+                    if (runToCursorActive && guiCpu.getPC() == gui.getCursorAddress()) {
+                        running = false;
+                        runToCursorActive = false;
+                    }
+
+                    if (!executed && guiCpu.hasBreakpointHit()) {
+                        running = false;
+                        runToCursorActive = false;
+                    }
                 }
-
-                if (!executed && guiCpu.hasBreakpointHit()) {
-                    running = false;
-                    runToCursorActive = false;
-                }
-
-
 
                 runDelay = 0;
             }

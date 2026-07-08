@@ -1,0 +1,169 @@
+ZX16 Assembler Listing
+==================================================
+
+   1      # Test 02: immediate instructions
+   2      # It covers signed imm7, logical masks, LUI and AUIPC.
+   3      
+   4      .text
+   5      
+   6      start:
+   7          li16 a0, title
+   8          ecall 0x012
+   9      
+  10          # Lowest signed imm7 value: -64
+  11          li x3, 0
+  12          addi x3, -64
+  13          li x4, -64
+  14          beq x3, x4, neg64_ok
+  15          j signed_fail
+  16      neg64_ok:
+  17      
+  18          # Highest signed imm7 value: +63
+  19          li x3, 0
+  20          addi x3, 63
+  21          li x4, 63
+  22          beq x3, x4, signed_ok
+  23          j signed_fail
+  24      signed_ok:
+  25          li16 a0, signed_pass
+  26          ecall 0x012
+  27      
+  28          # ORI uses the zero-extended 7-bit mask 0x7F.
+  29          li16 x3, 0x1200
+  30          ori x3, 0x7F
+  31          li16 x4, 0x127F
+  32          beq x3, x4, ori_ok
+  33          j mask_fail
+  34      ori_ok:
+  35      
+  36          # ANDI uses the same zero-extended mask.
+  37          li16 x3, 0xFFFF
+  38          andi x3, 0x7F
+  39          li16 x4, 0x007F
+  40          beq x3, x4, andi_ok
+  41          j mask_fail
+  42      andi_ok:
+  43      
+  44          # XORI uses the same zero-extended mask.
+  45          li16 x3, 0xAAAA
+  46          xori x3, 0x7F
+  47          li16 x4, 0xAAD5
+  48          beq x3, x4, mask_ok
+  49          j mask_fail
+  50      mask_ok:
+  51          li16 a0, mask_pass
+  52          ecall 0x012
+  53      
+  54          # Signed and unsigned immediate comparisons are different.
+  55          li x3, -1
+  56          slti x3, 1
+  57          li x4, 1
+  58          beq x3, x4, slti_ok
+  59          j compare_fail
+  60      slti_ok:
+  61          li16 x3, 0xFFFF
+  62          sltui x3, 1
+  63          li x4, 0
+  64          beq x3, x4, compare_ok
+  65          j compare_fail
+  66      compare_ok:
+  67          li16 a0, compare_pass
+  68          ecall 0x012
+  69      
+  70          # LUI places imm9 in bits 15..7.
+  71          lui x3, 0x1AB
+  72          li16 x4, 0xD580
+  73          beq x3, x4, lui_ok
+  74          j upper_fail
+  75      lui_ok:
+  76      
+  77          # AUIPC with zero returns this instruction's own address.
+  78      auipc_here:
+  79          auipc x3, 0
+  80          li16 x4, auipc_here
+  81          beq x3, x4, upper_ok
+  82          j upper_fail
+  83      upper_ok:
+  84          li16 a0, upper_pass
+  85          ecall 0x012
+  86      
+  87          li16 a0, all_pass
+  88          ecall 0x012
+  89          ecall 0x3FF
+  90      
+  91      signed_fail:
+  92          li16 a0, signed_bad
+  93          ecall 0x012
+  94          ecall 0x3FF
+  95      mask_fail:
+  96          li16 a0, mask_bad
+  97          ecall 0x012
+  98          ecall 0x3FF
+  99      compare_fail:
+ 100          li16 a0, compare_bad
+ 101          ecall 0x012
+ 102          ecall 0x3FF
+ 103      upper_fail:
+ 104          li16 a0, upper_bad
+ 105          ecall 0x012
+ 106          ecall 0x3FF
+ 107      
+ 108      .data
+ 109      title:         .string "TEST 02 - IMMEDIATE OPERATIONS\n"
+ 110      signed_pass:   .string "SIGNED IMM7 -64 AND +63: PASS\n"
+ 111      mask_pass:     .string "ORI ANDI XORI MASKS: PASS\n"
+ 112      compare_pass:  .string "SLTI AND SLTUI: PASS\n"
+ 113      upper_pass:    .string "LUI AND AUIPC: PASS\n"
+ 114      all_pass:      .string "TEST 02 RESULT: PASS\n"
+ 115      signed_bad:    .string "TEST 02 RESULT: FAIL AT SIGNED IMM7\n"
+ 116      mask_bad:      .string "TEST 02 RESULT: FAIL AT LOGICAL MASK\n"
+ 117      compare_bad:   .string "TEST 02 RESULT: FAIL AT COMPARISON\n"
+ 118      upper_bad:     .string "TEST 02 RESULT: FAIL AT LUI OR AUIPC\n"
+
+Symbol Table:
+------------------------------
+A0                   = 0x0006  (global)
+A1                   = 0x0007  (global)
+CODE_START           = 0x0020  (global)
+MEM_SIZE             = 0x10000  (global)
+MMIO_BASE            = 0xF000  (global)
+RA                   = 0x0001  (global)
+RESET_VECTOR         = 0x0000  (global)
+S0                   = 0x0003  (global)
+S1                   = 0x0004  (global)
+SP                   = 0x0002  (global)
+T0                   = 0x0000  (global)
+T1                   = 0x0005  (global)
+all_pass             = 0x8085  (local)
+andi_ok              = 0x005C  (local)
+auipc_here           = 0x0096  (local)
+compare_bad          = 0x80E6  (local)
+compare_fail         = 0x00BE  (local)
+compare_ok           = 0x0086  (local)
+compare_pass         = 0x805A  (local)
+lui_ok               = 0x0096  (local)
+mask_bad             = 0x80C0  (local)
+mask_fail            = 0x00B6  (local)
+mask_ok              = 0x006A  (local)
+mask_pass            = 0x803F  (local)
+neg64_ok             = 0x0030  (local)
+ori_ok               = 0x004E  (local)
+signed_bad           = 0x809B  (local)
+signed_fail          = 0x00AE  (local)
+signed_ok            = 0x003A  (local)
+signed_pass          = 0x8020  (local)
+slti_ok              = 0x007A  (local)
+start                = 0x0020  (local)
+title                = 0x8000  (local)
+upper_bad            = 0x810A  (local)
+upper_fail           = 0x00C6  (local)
+upper_ok             = 0x00A0  (local)
+upper_pass           = 0x8070  (local)
+
+Statistics:
+  Code size:    174 bytes
+  Data size:    304 bytes
+  BSS size:     0 bytes
+  Total size:   478 bytes
+  Symbols:      39
+  Lines:        118

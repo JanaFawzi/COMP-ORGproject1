@@ -40,6 +40,8 @@ public:
     unsigned short getSP();
     void setSP(unsigned short value);
 
+    static bool isWordAlignedAddress(unsigned short address);
+
     unsigned short fetch();
     unsigned short step();
 

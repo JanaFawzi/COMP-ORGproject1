@@ -63,7 +63,7 @@ public:
         bool& valid
     );
 
-    void open();
+    void open(bool startExpanded = false);
 
     bool isExpanded();
     void toggleViewMode();
@@ -187,7 +187,7 @@ private:
         int y
     );
 
-    void drawGraphicsPanel(CPU& cpu);
+    GuiAction drawGraphicsPanel(CPU& cpu, bool running);
 
     bool drawButton(int x, int y, int w, int h, const char text[]);
 

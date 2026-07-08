@@ -155,15 +155,24 @@ void Gui::buildConsoleVisibleText(const char consoleText[], char visibleText[], 
     visibleText[outIndex] = '\0';
 }
 
-void Gui::open() {
+void Gui::open(bool startExpanded) {
     InitWindow(width, height, "ZX16 Simulator");
 
     calculateLayout();
-    SetWindowSize(graphicsWidth, graphicsHeight);
 
     int monitor = GetCurrentMonitor();
     int monitorWidth = GetMonitorWidth(monitor);
-    SetWindowPosition(monitorWidth - graphicsWidth - 20, 20);
+
+    if (startExpanded) {
+        viewMode = GUI_VIEW_EXPANDED;
+        width = expandedWidth;
+        SetWindowSize(width, graphicsHeight);
+        SetWindowPosition(monitorWidth - width - 10, 20);
+    }
+    else {
+        SetWindowSize(graphicsWidth, graphicsHeight);
+        SetWindowPosition(monitorWidth - graphicsWidth - 20, 20);
+    }
 
     InitAudioDevice();
     guiAudioReady = IsAudioDeviceReady();
@@ -229,7 +238,7 @@ GuiAction Gui::draw(
     bool running,
     CPU& cpu
 ) {
-    GuiAction action;
+    GuiAction action = GUI_ACTION_NONE;
 
     BeginDrawing();
 
@@ -238,9 +247,8 @@ GuiAction Gui::draw(
     updateKeyboardFromRaylib(cpu);
     updateAudioFromCpu(cpu);
 
-    drawGraphicsPanel(cpu);
+    action = drawGraphicsPanel(cpu, running);
 
-    action = GUI_ACTION_NONE;
     if (drawViewToggleButton()) {
         toggleViewMode();
     }
@@ -256,7 +264,10 @@ GuiAction Gui::draw(
         drawingCpuPanel = true;
         BeginMode2D(cpuCamera);
         drawConsolePanel(consoleText);
-        action = drawControlPanel(running, cpu.isHalted());
+        GuiAction panelAction = drawControlPanel(running, cpu.isHalted());
+        if (panelAction != GUI_ACTION_NONE) {
+            action = panelAction;
+        }
         drawDisassemblyPanel(cpu, running);
         drawDataPanelTabs();
         if (dataPanel == GUI_DATA_REGISTERS) {
@@ -756,6 +767,16 @@ void Gui::disassembleInstruction(unsigned short word, char text[], int textSize)
             return;
         }
 
+        if (instruction.funct4 == 0x2) {
+            snprintf(text, textSize, "R slt x%d,x%d", instruction.rd, instruction.rs2);
+            return;
+        }
+
+        if (instruction.funct4 == 0x3) {
+            snprintf(text, textSize, "R sltu x%d,x%d", instruction.rd, instruction.rs2);
+            return;
+        }
+
         if (instruction.funct4 == 0x4) {
             snprintf(text, textSize, "R sll x%d,x%d", instruction.rd, instruction.rs2);
             return;
@@ -786,6 +807,11 @@ void Gui::disassembleInstruction(unsigned short word, char text[], int textSize)
             return;
         }
 
+        if (instruction.funct4 == 0xA) {
+            snprintf(text, textSize, "R mv x%d,x%d", instruction.rd, instruction.rs2);
+            return;
+        }
+
         if (instruction.funct4 == 0xB) {
             snprintf(text, textSize, "R jr x%d", instruction.rd);
             return;
@@ -804,6 +830,37 @@ void Gui::disassembleInstruction(unsigned short word, char text[], int textSize)
         if (instruction.func3 == 0x0) {
             snprintf(text, textSize, "I addi x%d,%d", instruction.rd, instruction.immediate);
             return;
+        }
+
+        if (instruction.func3 == 0x1) {
+            snprintf(text, textSize, "I slti x%d,%d", instruction.rd, instruction.immediate);
+            return;
+        }
+
+        if (instruction.func3 == 0x2) {
+            snprintf(text, textSize, "I sltui x%d,%d", instruction.rd, instruction.immediate);
+            return;
+        }
+
+        if (instruction.func3 == 0x3) {
+            int imm7 = (word >> 9) & 0x7F;
+            int shiftType = (imm7 >> 4) & 0x7;
+            int amount = imm7 & 0xF;
+
+            if (shiftType == 0x1) {
+                snprintf(text, textSize, "I slli x%d,%d", instruction.rd, amount);
+                return;
+            }
+
+            if (shiftType == 0x2) {
+                snprintf(text, textSize, "I srli x%d,%d", instruction.rd, amount);
+                return;
+            }
+
+            if (shiftType == 0x4) {
+                snprintf(text, textSize, "I srai x%d,%d", instruction.rd, amount);
+                return;
+            }
         }
 
         if (instruction.func3 == 0x4) {
@@ -921,7 +978,14 @@ void Gui::disassembleInstruction(unsigned short word, char text[], int textSize)
     }
 
     if (instruction.opcode == 6) {
-        snprintf(text, textSize, "U type");
+        int imm9 = instruction.immediate >> 7;
+
+        if (instruction.upperFlag == 1) {
+            snprintf(text, textSize, "U auipc x%d,%d", instruction.rd, imm9);
+            return;
+        }
+
+        snprintf(text, textSize, "U lui x%d,%d", instruction.rd, imm9);
         return;
     }
 
@@ -1404,7 +1468,8 @@ void Gui::drawMemoryPanel(CPU& cpu, bool running) {
     }
 }
 
-void Gui::drawGraphicsPanel(CPU& cpu) {
+GuiAction Gui::drawGraphicsPanel(CPU& cpu, bool running) {
+    GuiAction action = GUI_ACTION_NONE;
     GraphicsMemory graphics(cpu.getMemory());
 
     Rgb888Color pixel;
@@ -1453,6 +1518,28 @@ void Gui::drawGraphicsPanel(CPU& cpu) {
             }
         }
     }
+
+    int controlsW = 180;
+    int controlsH = 30;
+    int controlsX = previewX + (previewW - controlsW) / 2;
+    int controlsY = previewY + previewH + 12;
+
+    if (controlsY + controlsH > panelY + panelH - 12) {
+        controlsY = previewY + previewH - controlsH - 10;
+    }
+
+    Color overlay = { 0, 0, 0, 180 };
+    DrawRectangle(controlsX - 8, controlsY - 6, controlsW + 16, controlsH + 12, overlay);
+
+    if (drawButton(controlsX, controlsY, 78, controlsH, running ? "Pause" : "Start")) {
+        action = GUI_ACTION_RUN_PAUSE;
+    }
+
+    if (drawButton(controlsX + 88, controlsY, 92, controlsH, "Restart")) {
+        action = GUI_ACTION_RESET;
+    }
+
+    return action;
 }
 
 bool Gui::drawButton(int x, int y, int w, int h, const char text[]) {

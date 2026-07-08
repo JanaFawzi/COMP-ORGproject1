@@ -7,7 +7,7 @@ assembler/                    ZX16 Python assembler
 asm/                          Assembly source programs
 asm/tests/                    Assembly test suites (to be added)
 asm/bin/                      Generated binary images
-docs/assembly_test_results.md Assembly test report (to be added)
+docs/assembly_test_results.md Assembly test report and actual results
 docs/screenshots/             Test evidence screenshots
 src/                          C++ simulator implementation
 ```
@@ -22,3 +22,14 @@ The supplied assembler emits a full 64 KB memory image. `ProgramLoader` preserve
 the absolute addresses in such images, including code at `0x0020`, data at
 `0x8000`, and BSS at `0x9000`. Smaller legacy `.bin` files are still loaded at
 `0x0020`.
+
+## Run an assembly test
+
+Pass the generated image to the simulator:
+
+```powershell
+cmake-build-debug/zx16sim.exe asm/bin/01_arithmetic_registers.bin
+```
+
+The first three documented tests, expected results, actual results, and screenshots
+are in [`docs/assembly_test_results.md`](docs/assembly_test_results.md).
