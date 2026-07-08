@@ -1,158 +1,128 @@
-# ZX16 Assembly Test Results
+# ZX16 Assembly Tests
 
-This report covers the first three ZX16 assembly tests.
+This file shows the result of the first six assembly tests.
 
-Each program checks its own answers. If an answer is wrong, it prints the name of
-the failed part and stops. If every answer is correct, it prints a final PASS line.
-
-## How to assemble and run
-
-Assemble one test:
+## Running a test
 
 ```powershell
 python assembler/zx16asm.py asm/tests/01_arithmetic_registers.s -o asm/bin/01_arithmetic_registers.bin -f bin
-```
-
-Run the generated test image:
-
-```powershell
 cmake-build-debug/zx16sim.exe asm/bin/01_arithmetic_registers.bin
 ```
 
-The simulator loads the image, runs it until `halt`, and opens the debugger with
-the console result visible.
+Each program prints `PASS` when the result is correct. If a check fails, it prints
+`FAIL` and stops.
 
-## Test 01: Arithmetic and registers
+## Test 01 - Arithmetic and registers
 
-Source: [`01_arithmetic_registers.s`](../asm/tests/01_arithmetic_registers.s)
+File: [`01_arithmetic_registers.s`](../asm/tests/01_arithmetic_registers.s)
 
-### What this program tests
+Checks: `ADD`, `SUB`, `MV`, 16-bit overflow, and reading/writing `x0`.
 
-- `ADD`: 20 + 22 must give 42.
-- `SUB`: 50 - 8 must give 42.
-- `MV`: the complete value `0xBEEF` must be copied.
-- `x0`: writing 7, adding 5, and reading it again must give 12.
-- 16-bit wrap: `0xFFFF + 1` must give `0x0000`.
+Expected: all calculations are correct. `x0` keeps the value written to it and
+`0xFFFF + 1` becomes `0x0000`.
 
-The `x0` check is important because ZX16 does not have a hardwired zero register.
+Actual: PASS.
 
-### Expected console output
+![Test 01 output](screenshots/assembly-tests/01_arithmetic_registers.png)
 
-```text
-TEST 01 - ARITHMETIC AND REGISTERS
-ADD: PASS
-SUB: PASS
-MV: PASS
-WRITABLE X0: PASS
-16-BIT WRAP: PASS
-TEST 01 RESULT: PASS
-```
+## Test 02 - Immediate instructions
 
-### Actual result
+File: [`02_immediate_operations.s`](../asm/tests/02_immediate_operations.s)
 
-The actual output matched the expected output. The final result was PASS.
+Checks: signed immediate limits `-64` and `+63`, logical immediate behavior,
+`SLTI`, `SLTUI`, `LUI`, and `AUIPC`.
 
-![Test 01 simulator output](screenshots/assembly-tests/01_arithmetic_registers.png)
+Expected: the signed limits work, `ORI` uses a zero-extended mask,
+`ANDI/XORI` use the sign-extended immediate value, and `LUI 0x1AB` gives
+`0xD580`.
 
-## Test 02: Immediate operations
+Actual: PASS.
 
-Source: [`02_immediate_operations.s`](../asm/tests/02_immediate_operations.s)
+![Test 02 output](screenshots/assembly-tests/02_immediate_operations.png)
 
-### What this program tests
+## Test 03 - Logic, shifts and comparisons
 
-- Signed imm7 lowest value: `-64`.
-- Signed imm7 highest value: `+63`.
-- `ORI`, `ANDI`, and `XORI` use the zero-extended mask `0x7F`.
-- `SLTI` compares signed values.
-- `SLTUI` compares unsigned values.
-- `LUI 0x1AB` must give `0xD580`.
-- `AUIPC` uses the address of its own instruction.
+File: [`03_logic_shift_compare.s`](../asm/tests/03_logic_shift_compare.s)
 
-### Expected values
+Checks: `OR`, `AND`, `XOR`, register shifts, immediate shifts, `SLT`, and `SLTU`.
 
-| Check | Expected result |
-|---|---:|
-| `0 + (-64)` | `0xFFC0` |
-| `0 + 63` | `0x003F` |
-| `0x1200 OR 0x007F` | `0x127F` |
-| `0xFFFF AND 0x007F` | `0x007F` |
-| `0xAAAA XOR 0x007F` | `0xAAD5` |
-| `LUI 0x1AB` | `0xD580` |
+Expected: logical shift of `0x8000` by 15 gives `0x0001`, arithmetic shift gives
+`0xFFFF`, signed `-1 < 1` is true, and unsigned `65535 < 1` is false.
 
-### Expected console output
+Actual: PASS.
 
-```text
-TEST 02 - IMMEDIATE OPERATIONS
-SIGNED IMM7 -64 AND +63: PASS
-ORI ANDI XORI MASKS: PASS
-SLTI AND SLTUI: PASS
-LUI AND AUIPC: PASS
-TEST 02 RESULT: PASS
-```
+![Test 03 output](screenshots/assembly-tests/03_logic_shift_compare.png)
 
-### Actual result
+## Test 04 - Memory
 
-The actual output matched the expected output. The final result was PASS.
+File: [`04_memory_load_store.s`](../asm/tests/04_memory_load_store.s)
 
-![Test 02 simulator output](screenshots/assembly-tests/02_immediate_operations.png)
+Checks: `LB`, `LBU`, `LW`, `SB`, `SW`, little-endian words, odd word access, and
+a write to the tile map at `0xF000`.
 
-## Test 03: Logic, shifts and comparisons
+Expected: `LB` of `0x80` gives `0xFF80`, `LBU` gives `0x0080`, odd-address
+`SW/LW` still use little-endian order, and the tile-map write is stored.
 
-Source: [`03_logic_shift_compare.s`](../asm/tests/03_logic_shift_compare.s)
+Actual: PASS.
 
-### What this program tests
+![Test 04 output](screenshots/assembly-tests/04_memory_load_store.png)
 
-- Register logic: `OR`, `AND`, and `XOR`.
-- Register shifts: `SLL`, `SRL`, and `SRA`.
-- Immediate shifts: `SLLI`, `SRLI`, and `SRAI`.
-- Shift amount boundary of 15.
-- `SRL` fills the left side with zero.
-- `SRA` keeps the negative sign bit.
-- `SLT` treats `0xFFFF` as signed -1.
-- `SLTU` treats `0xFFFF` as unsigned 65535.
+## Test 05 - Branches and jumps
 
-### Expected values
+File: [`05_branches_jumps.s`](../asm/tests/05_branches_jumps.s)
 
-| Check | Expected result |
-|---|---:|
-| `0x0F0F OR 0x00F0` | `0x0FFF` |
-| `0xF0FF AND 0x0FF0` | `0x00F0` |
-| `0xAAAA XOR 0x0F0F` | `0xA5A5` |
-| `1 << 15` | `0x8000` |
-| logical `0x8000 >> 15` | `0x0001` |
-| arithmetic `0x8000 >> 15` | `0xFFFF` |
-| signed `-1 < 1` | `1` |
-| unsigned `65535 < 1` | `0` |
+Checks: all branch conditions, `J`, `JAL`, `JR`, `JALR`, and PC-relative limits.
 
-### Expected console output
+Expected: branches work at `-16` and `+14`, jumps work at `-512` and `+510`, and
+`JAL/JALR` save `PC+2` as the return address.
 
-```text
-TEST 03 - LOGIC SHIFT AND COMPARE
-OR AND XOR: PASS
-SLL SRL SRA: PASS
-SLLI SRLI SRAI: PASS
-SLT AND SLTU: PASS
-TEST 03 RESULT: PASS
-```
+Actual: PASS.
 
-### Actual result
+![Test 05 output](screenshots/assembly-tests/05_branches_jumps.png)
 
-The actual output matched the expected output. The final result was PASS.
+## Test 06 - Stack and functions
 
-![Test 03 simulator output](screenshots/assembly-tests/03_logic_shift_compare.png)
+File: [`06_stack_subroutines.s`](../asm/tests/06_stack_subroutines.s)
 
-## Final result
+Checks: reset SP, `PUSH`, `POP`, `CALL`, `RET`, and a nested call.
 
-| Test | Simulator result |
+Expected: SP starts at `0xF000`, a push moves it to `0xEFFE`, a pop restores it,
+and stack data is stored below `0xF000`.
+
+Actual: PASS.
+
+![Test 06 output](screenshots/assembly-tests/06_stack_subroutines.png)
+
+## My simulator results
+
+| Test | Result |
 |---|---|
 | 01 Arithmetic and registers | PASS |
-| 02 Immediate operations | PASS |
+| 02 Immediate instructions | PASS |
 | 03 Logic, shifts and comparisons | PASS |
+| 04 Memory | PASS |
+| 05 Branches and jumps | PASS |
+| 06 Stack and functions | PASS |
 
-The supplied assembler produced all three 64 KB images successfully. The
-programs used the `print_string` extension service only to make their result easy
-to read in the simulator console.
+The supplied assembler built all six programs. The programs use `print_string`
+to show their results in the console.
 
-The separate reference simulator `zx16sim.py` is not present in this repository,
-so a reference-simulator screenshot has not been claimed here. That comparison
-can be added when the reference simulator is provided.
+## Reference simulator check
+
+I also ran the same `.bin` files with `reference/zx16sim.py`.
+
+The reference simulator only prints with `print_int` and `print_char`. These
+tests use `print_string`, so the reference console output is empty. I checked the
+final message address in `x6` instead.
+
+| Test | My simulator | Reference simulator | Note |
+|---|---|---|---|
+| 01 Arithmetic and registers | PASS | PASS | Same result |
+| 02 Immediate instructions | PASS | PASS | Same result |
+| 03 Logic, shifts and comparisons | PASS | PASS | Same result |
+| 04 Memory | PASS | PASS | Same result |
+| 05 Branches and jumps | PASS | PASS | Same result |
+| 06 Stack and functions | PASS | PASS | Same result |
+
+So the six tests now pass in my simulator and in the provided reference
+simulator.

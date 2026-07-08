@@ -10,7 +10,7 @@ void RegisterFile::reset() {
     }
 
     // x2 is the stack pointer
-    registers[2] = 0xEFFE;
+    registers[2] = 0xF000;
 }
 
 unsigned short RegisterFile::getRegister(int index) {

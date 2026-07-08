@@ -1,0 +1,260 @@
+ZX16 Assembler Listing
+==================================================
+
+   1      # Test 05: branches and jumps
+   2      # It checks branch meanings, PC+2, links, and exact offset limits.
+   3      
+   4      .text
+   5      
+   6      start:
+   7          li16 a0, title
+   8          ecall 0x012
+   9      
+  10          # Equality and zero branches.
+  11          li x3, 5
+  12          li x4, 5
+  13          beq x3, x4, beq_ok
+  14          j branch_fail
+  15      beq_ok:
+  16          li x4, 6
+  17          bne x3, x4, bne_ok
+  18          j branch_fail
+  19      bne_ok:
+  20          li x3, 0
+  21          bz x3, bz_ok
+  22          j branch_fail
+  23      bz_ok:
+  24          li x3, 1
+  25          bnz x3, bnz_ok
+  26          j branch_fail
+  27      bnz_ok:
+  28      
+  29          # These two branches must not be taken.
+  30          li x3, 5
+  31          li x4, 6
+  32          beq x3, x4, unexpected_beq
+  33          j beq_not_taken_ok
+  34      unexpected_beq:
+  35          j branch_fail
+  36      beq_not_taken_ok:
+  37          li x4, 5
+  38          bne x3, x4, unexpected_bne
+  39          j bne_not_taken_ok
+  40      unexpected_bne:
+  41          j branch_fail
+  42      bne_not_taken_ok:
+  43      
+  44          # Signed and unsigned relation branches.
+  45          li x3, -1
+  46          li x4, 1
+  47          blt x3, x4, blt_ok
+  48          j branch_fail
+  49      blt_ok:
+  50          bge x4, x3, bge_ok
+  51          j branch_fail
+  52      bge_ok:
+  53          li x3, 1
+  54          li16 x4, 0xFFFF
+  55          bltu x3, x4, bltu_ok
+  56          j branch_fail
+  57      bltu_ok:
+  58          bgeu x4, x3, branch_ok
+  59          j branch_fail
+  60      branch_ok:
+  61          li16 a0, branch_pass
+  62          ecall 0x012
+  63      
+  64          # Direct J skips the failure jump.
+  65          j direct_j_ok
+  66          j jump_fail
+  67      direct_j_ok:
+  68      
+  69          # JAL stores PC+2 in ra, and JR returns to it.
+  70          jal ra, jal_function
+  71      after_jal:
+  72      
+  73          # JALR also stores PC+2 in ra and jumps through a register.
+  74          li16 x3, jalr_function
+  75          jalr ra, x3
+  76      after_jalr:
+  77          li16 a0, jump_pass
+  78          ecall 0x012
+  79          j after_functions
+  80      
+  81      jal_function:
+  82          li16 x4, after_jal
+  83          beq ra, x4, jal_link_ok
+  84          j jump_fail
+  85      jal_link_ok:
+  86          jr ra
+  87      
+  88      jalr_function:
+  89          li16 x4, after_jalr
+  90          beq ra, x4, jalr_link_ok
+  91          j jump_fail
+  92      jalr_link_ok:
+  93          jr ra
+  94      
+  95      after_functions:
+  96          # Exact positive branch boundary: +14 bytes.
+  97          li x3, 0
+  98          li x5, 0
+  99          bz x3, branch_plus14_target
+ 100          addi x5, 1
+ 101          addi x5, 1
+ 102          addi x5, 1
+ 103          addi x5, 1
+ 104          addi x5, 1
+ 105          addi x5, 1
+ 106          addi x5, 1
+ 107      branch_plus14_target:
+ 108          li x4, 0
+ 109          beq x5, x4, plus14_ok
+ 110          j boundary_fail
+ 111      plus14_ok:
+ 112      
+ 113          # Exact negative branch boundary: -16 bytes.
+ 114          li x3, 2
+ 115          li x5, 0
+ 116      branch_minus16_target:
+ 117          addi x3, -1
+ 118          addi x5, 0
+ 119          addi x5, 0
+ 120          addi x5, 0
+ 121          addi x5, 0
+ 122          addi x5, 0
+ 123          addi x5, 0
+ 124          bnz x3, branch_minus16_target
+ 125          li x4, 0
+ 126          beq x3, x4, branch_boundaries_ok
+ 127          j boundary_fail
+ 128      branch_boundaries_ok:
+ 129          li16 a0, branch_boundary_pass
+ 130          ecall 0x012
+ 131      
+ 132          # Continue at the fixed J boundary test area.
+ 133          li x5, 0
+ 134          j jump_plus510_source
+ 135      
+ 136      branch_fail:
+ 137          li16 a0, branch_bad
+ 138          ecall 0x012
+ 139          ecall 0x3FF
+ 140      jump_fail:
+ 141          li16 a0, jump_bad
+ 142          ecall 0x012
+ 143          ecall 0x3FF
+ 144      boundary_fail:
+ 145          li16 a0, boundary_bad
+ 146          ecall 0x012
+ 147          ecall 0x3FF
+ 148      
+ 149          # From 0x0200, the target at 0x0400 is exactly PC+2+510.
+ 150      .org 0x0200
+ 151      jump_plus510_source:
+ 152          j jump_boundary_target
+ 153      
+ 154      .org 0x0400
+ 155      jump_boundary_target:
+ 156          addi x5, 1
+ 157          li x4, 1
+ 158          beq x5, x4, go_to_minus512
+ 159          j jump_boundaries_done
+ 160      
+ 161      go_to_minus512:
+ 162          j jump_minus512_source
+ 163      
+ 164      jump_boundaries_done:
+ 165          li x4, 2
+ 166          beq x5, x4, jump_boundaries_ok
+ 167          li16 a0, boundary_bad
+ 168          ecall 0x012
+ 169          ecall 0x3FF
+ 170      jump_boundaries_ok:
+ 171          li16 a0, jump_boundary_pass
+ 172          ecall 0x012
+ 173          li16 a0, all_pass
+ 174          ecall 0x012
+ 175          ecall 0x3FF
+ 176      
+ 177          # From 0x05FE, jumping to 0x0400 is exactly PC+2-512.
+ 178      .org 0x05FE
+ 179      jump_minus512_source:
+ 180          j jump_boundary_target
+ 181      
+ 182      .data
+ 183      title:                .string "TEST 05 - BRANCHES AND JUMPS\n"
+ 184      branch_pass:          .string "ALL BRANCH CONDITIONS: PASS\n"
+ 185      jump_pass:            .string "J JAL JR AND JALR: PASS\n"
+ 186      branch_boundary_pass: .string "BRANCH -16 AND +14: PASS\n"
+ 187      jump_boundary_pass:   .string "JUMP -512 AND +510: PASS\n"
+ 188      all_pass:             .string "TEST 05 RESULT: PASS\n"
+ 189      branch_bad:           .string "TEST 05 RESULT: FAIL AT BRANCH\n"
+ 190      jump_bad:             .string "TEST 05 RESULT: FAIL AT JUMP OR LINK\n"
+ 191      boundary_bad:         .string "TEST 05 RESULT: FAIL AT BOUNDARY\n"
+
+Symbol Table:
+------------------------------
+A0                   = 0x0006  (global)
+A1                   = 0x0007  (global)
+CODE_START           = 0x0020  (global)
+MEM_SIZE             = 0x10000  (global)
+MMIO_BASE            = 0xF000  (global)
+RA                   = 0x0001  (global)
+RESET_VECTOR         = 0x0000  (global)
+S0                   = 0x0003  (global)
+S1                   = 0x0004  (global)
+SP                   = 0x0002  (global)
+T0                   = 0x0000  (global)
+T1                   = 0x0005  (global)
+after_functions      = 0x009A  (local)
+after_jal            = 0x0078  (local)
+after_jalr           = 0x007E  (local)
+all_pass             = 0x8088  (local)
+beq_not_taken_ok     = 0x004A  (local)
+beq_ok               = 0x002E  (local)
+bge_ok               = 0x005E  (local)
+blt_ok               = 0x005A  (local)
+bltu_ok              = 0x0068  (local)
+bne_not_taken_ok     = 0x0052  (local)
+bne_ok               = 0x0034  (local)
+bnz_ok               = 0x0040  (local)
+boundary_bad         = 0x80E4  (local)
+boundary_fail        = 0x00E8  (local)
+branch_bad           = 0x809E  (local)
+branch_boundaries_ok = 0x00CE  (local)
+branch_boundary_pass = 0x8054  (local)
+branch_fail          = 0x00D8  (local)
+branch_minus16_target = 0x00B8  (local)
+branch_ok            = 0x006C  (local)
+branch_pass          = 0x801E  (local)
+branch_plus14_target = 0x00AE  (local)
+bz_ok                = 0x003A  (local)
+direct_j_ok          = 0x0076  (local)
+go_to_minus512       = 0x0408  (local)
+jal_function         = 0x0086  (local)
+jal_link_ok          = 0x008E  (local)
+jalr_function        = 0x0090  (local)
+jalr_link_ok         = 0x0098  (local)
+jump_bad             = 0x80BE  (local)
+jump_boundaries_done = 0x040A  (local)
+jump_boundaries_ok   = 0x0416  (local)
+jump_boundary_pass   = 0x806E  (local)
+jump_boundary_target = 0x0400  (local)
+jump_fail            = 0x00E0  (local)
+jump_minus512_source = 0x05FE  (local)
+jump_pass            = 0x803B  (local)
+jump_plus510_source  = 0x0200  (local)
+plus14_ok            = 0x00B4  (local)
+start                = 0x0020  (local)
+title                = 0x8000  (local)
+unexpected_beq       = 0x0048  (local)
+unexpected_bne       = 0x0050  (local)
+
+Statistics:
+  Code size:    1504 bytes
+  Data size:    262 bytes
+  BSS size:     0 bytes
+  Total size:   1766 bytes
+  Symbols:      57
+  Lines:        191

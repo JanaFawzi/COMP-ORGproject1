@@ -11,7 +11,7 @@ void CPU::reset() {
     registers.reset();
 
     pc = 0x0020;
-    registers.setRegister(2, 0xEFFE);
+    registers.setRegister(2, 0xF000);
 
     lastInstruction = 0x0000;
     lastHandler = -1;
@@ -890,12 +890,12 @@ void CPU::handleIType(DecodedInstruction instruction) {
     }
 
     if (instruction.func3 == 0x5) {
-        result = rdValue & immMask;
+        result = rdValue & (unsigned short)instruction.immediate;
         registers.setRegister(instruction.rd, result);
     }
 
     if (instruction.func3 == 0x6) {
-        result = rdValue ^ immMask;
+        result = rdValue ^ (unsigned short)instruction.immediate;
         registers.setRegister(instruction.rd, result);
     }
 
@@ -981,7 +981,7 @@ void CPU::handleSType(DecodedInstruction instruction) {
         memory.write8(address, rs2Value & 0x00FF);
     }
 
-    if (instruction.func3 == 0x1 && isWordAlignedAddress(address)) {
+    if (instruction.func3 == 0x1) {
         memory.write16(address, rs2Value);
     }
 }
@@ -1006,7 +1006,7 @@ void CPU::handleLType(DecodedInstruction instruction) {
         registers.setRegister(instruction.rd, result);
     }
 
-    if (instruction.func3 == 0x1 && isWordAlignedAddress(address)) {
+    if (instruction.func3 == 0x1) {
         result = memory.read16(address);
         registers.setRegister(instruction.rd, result);
     }

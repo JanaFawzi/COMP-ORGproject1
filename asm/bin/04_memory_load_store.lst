@@ -1,0 +1,179 @@
+ZX16 Assembler Listing
+==================================================
+
+   1      # Test 04: memory loads and stores
+   2      # It checks bytes, words, alignment, and tile-map memory.
+   3      
+   4      .text
+   5      
+   6      start:
+   7          li16 a0, title
+   8          ecall 0x012
+   9      
+  10          li16 x3, test_memory
+  11      
+  12          # SW/LW use little-endian 16-bit words.
+  13          li16 x4, 0xABCD
+  14          sw x4, 0(x3)
+  15          lw x5, 0(x3)
+  16          beq x5, x4, word_ok
+  17          j word_fail
+  18      word_ok:
+  19          lbu x5, 0(x3)
+  20          li16 x4, 0x00CD
+  21          beq x5, x4, low_byte_ok
+  22          j endian_fail
+  23      low_byte_ok:
+  24          lbu x5, 1(x3)
+  25          li16 x4, 0x00AB
+  26          beq x5, x4, endian_ok
+  27          j endian_fail
+  28      endian_ok:
+  29          li16 a0, word_pass
+  30          ecall 0x012
+  31      
+  32          # LB sign-extends 0x80. LBU zero-extends 0x80.
+  33          li16 x4, 0x0080
+  34          sb x4, 2(x3)
+  35          lb x5, 2(x3)
+  36          li16 x4, 0xFF80
+  37          beq x5, x4, lb_ok
+  38          j byte_fail
+  39      lb_ok:
+  40          lbu x5, 2(x3)
+  41          li16 x4, 0x0080
+  42          beq x5, x4, byte_ok
+  43          j byte_fail
+  44      byte_ok:
+  45          li16 a0, byte_pass
+  46          ecall 0x012
+  47      
+  48          # Odd-address SW must not change either byte.
+  49          li x4, 0x11
+  50          sb x4, 3(x3)
+  51          li x4, 0x22
+  52          sb x4, 4(x3)
+  53          mv x5, x3
+  54          addi x5, 3
+  55          li16 x4, 0xBEEF
+  56          sw x4, 0(x5)
+  57          lbu x4, 0(x5)
+  58          li x0, 0x11
+  59          beq x4, x0, odd_low_ok
+  60          j align_fail
+  61      odd_low_ok:
+  62          lbu x4, 1(x5)
+  63          li x0, 0x22
+  64          beq x4, x0, odd_store_ok
+  65          j align_fail
+  66      odd_store_ok:
+  67      
+  68          # Odd-address LW must leave its destination unchanged.
+  69          li16 x4, 0xCAFE
+  70          lw x4, 0(x5)
+  71          li16 x0, 0xCAFE
+  72          beq x4, x0, align_ok
+  73          j align_fail
+  74      align_ok:
+  75          li16 a0, align_pass
+  76          ecall 0x012
+  77      
+  78          # CPU stores can write directly to the tile map at 0xF000.
+  79          li16 x3, 0xF000
+  80          li16 x4, 0x0201
+  81          sw x4, 0(x3)
+  82          lw x5, 0(x3)
+  83          beq x5, x4, tile_ok
+  84          j tile_fail
+  85      tile_ok:
+  86          li16 a0, tile_pass
+  87          ecall 0x012
+  88      
+  89          li16 a0, all_pass
+  90          ecall 0x012
+  91          ecall 0x3FF
+  92      
+  93      word_fail:
+  94          li16 a0, word_bad
+  95          ecall 0x012
+  96          ecall 0x3FF
+  97      endian_fail:
+  98          li16 a0, endian_bad
+  99          ecall 0x012
+ 100          ecall 0x3FF
+ 101      byte_fail:
+ 102          li16 a0, byte_bad
+ 103          ecall 0x012
+ 104          ecall 0x3FF
+ 105      align_fail:
+ 106          li16 a0, align_bad
+ 107          ecall 0x012
+ 108          ecall 0x3FF
+ 109      tile_fail:
+ 110          li16 a0, tile_bad
+ 111          ecall 0x012
+ 112          ecall 0x3FF
+ 113      
+ 114      .data
+ 115      test_memory: .space 16
+ 116      title:       .string "TEST 04 - MEMORY LOAD AND STORE\n"
+ 117      word_pass:   .string "LW SW AND LITTLE ENDIAN: PASS\n"
+ 118      byte_pass:   .string "LB AND LBU OF 0X80: PASS\n"
+ 119      align_pass:  .string "ODD WORD ACCESS REJECTED: PASS\n"
+ 120      tile_pass:   .string "TILE MAP WRITE AT 0XF000: PASS\n"
+ 121      all_pass:    .string "TEST 04 RESULT: PASS\n"
+ 122      word_bad:    .string "TEST 04 RESULT: FAIL AT LW OR SW\n"
+ 123      endian_bad:  .string "TEST 04 RESULT: FAIL AT ENDIAN ORDER\n"
+ 124      byte_bad:    .string "TEST 04 RESULT: FAIL AT LB OR LBU\n"
+ 125      align_bad:   .string "TEST 04 RESULT: FAIL AT ALIGNMENT\n"
+ 126      tile_bad:    .string "TEST 04 RESULT: FAIL AT TILE MAP\n"
+
+Symbol Table:
+------------------------------
+A0                   = 0x0006  (global)
+A1                   = 0x0007  (global)
+CODE_START           = 0x0020  (global)
+MEM_SIZE             = 0x10000  (global)
+MMIO_BASE            = 0xF000  (global)
+RA                   = 0x0001  (global)
+RESET_VECTOR         = 0x0000  (global)
+S0                   = 0x0003  (global)
+S1                   = 0x0004  (global)
+SP                   = 0x0002  (global)
+T0                   = 0x0000  (global)
+T1                   = 0x0005  (global)
+align_bad            = 0x812B  (local)
+align_fail           = 0x00DC  (local)
+align_ok             = 0x00A0  (local)
+align_pass           = 0x806A  (local)
+all_pass             = 0x80AA  (local)
+byte_bad             = 0x8108  (local)
+byte_fail            = 0x00D4  (local)
+byte_ok              = 0x006A  (local)
+byte_pass            = 0x8050  (local)
+endian_bad           = 0x80E2  (local)
+endian_fail          = 0x00CC  (local)
+endian_ok            = 0x004A  (local)
+lb_ok                = 0x0060  (local)
+low_byte_ok          = 0x0040  (local)
+odd_low_ok           = 0x008A  (local)
+odd_store_ok         = 0x0092  (local)
+start                = 0x0020  (local)
+test_memory          = 0x8000  (local)
+tile_bad             = 0x814E  (local)
+tile_fail            = 0x00E4  (local)
+tile_ok              = 0x00B6  (local)
+tile_pass            = 0x808A  (local)
+title                = 0x8010  (local)
+word_bad             = 0x80C0  (local)
+word_fail            = 0x00C4  (local)
+word_ok              = 0x0036  (local)
+word_pass            = 0x8031  (local)
+
+Statistics:
+  Code size:    204 bytes
+  Data size:    368 bytes
+  BSS size:     0 bytes
+  Total size:   572 bytes
+  Symbols:      41
+  Lines:        126

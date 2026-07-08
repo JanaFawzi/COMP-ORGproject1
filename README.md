@@ -5,10 +5,11 @@
 ```text
 assembler/                    ZX16 Python assembler
 asm/                          Assembly source programs
-asm/tests/                    Assembly test suites (to be added)
+asm/tests/                    Assembly test suites
 asm/bin/                      Generated binary images
 docs/assembly_test_results.md Assembly test report and actual results
 docs/screenshots/             Test evidence screenshots
+reference/                    Provided Python reference simulator
 src/                          C++ simulator implementation
 ```
 
@@ -31,5 +32,19 @@ Pass the generated image to the simulator:
 cmake-build-debug/zx16sim.exe asm/bin/01_arithmetic_registers.bin
 ```
 
-The first three documented tests, expected results, actual results, and screenshots
+The first six documented tests, expected results, actual results, and screenshots
 are in [`docs/assembly_test_results.md`](docs/assembly_test_results.md).
+
+## Run the reference comparison
+
+The provided reference simulator is saved as:
+
+```text
+reference/zx16sim.py
+```
+
+After assembling the tests, run:
+
+```powershell
+python reference/compare_assembly_tests.py
+```

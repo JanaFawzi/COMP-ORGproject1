@@ -1,5 +1,5 @@
 # Test 02: immediate instructions
-# It covers signed imm7, logical masks, LUI and AUIPC.
+# It covers signed imm7, logical immediates, LUI and AUIPC.
 
 .text
 
@@ -33,18 +33,18 @@ signed_ok:
     j mask_fail
 ori_ok:
 
-    # ANDI uses the same zero-extended mask.
+    # ANDI sign-extends 0x7F to 0xFFFF.
     li16 x3, 0xFFFF
     andi x3, 0x7F
-    li16 x4, 0x007F
+    li16 x4, 0xFFFF
     beq x3, x4, andi_ok
     j mask_fail
 andi_ok:
 
-    # XORI uses the same zero-extended mask.
+    # XORI sign-extends 0x7F to 0xFFFF.
     li16 x3, 0xAAAA
     xori x3, 0x7F
-    li16 x4, 0xAAD5
+    li16 x4, 0x5555
     beq x3, x4, mask_ok
     j mask_fail
 mask_ok:
@@ -108,7 +108,7 @@ upper_fail:
 .data
 title:         .string "TEST 02 - IMMEDIATE OPERATIONS\n"
 signed_pass:   .string "SIGNED IMM7 -64 AND +63: PASS\n"
-mask_pass:     .string "ORI ANDI XORI MASKS: PASS\n"
+mask_pass:     .string "ORI ZERO, ANDI XORI SIGN: PASS\n"
 compare_pass:  .string "SLTI AND SLTUI: PASS\n"
 upper_pass:    .string "LUI AND AUIPC: PASS\n"
 all_pass:      .string "TEST 02 RESULT: PASS\n"

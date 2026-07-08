@@ -119,8 +119,8 @@ void testGraphicsMemoryManager() {
     assert(GraphicsMemory::RESERVED_MMIO_BASE == 0xFA10);
     assert(GraphicsMemory::RESERVED_MMIO_END == 0xFFFF);
 
-    assert(GraphicsMemory::PROJECT_STACK_RESET == 0xEFFE);
-    assert(GraphicsMemory::PROJECT_STACK_RESET < GraphicsMemory::GRAPHICS_BASE);
+    assert(GraphicsMemory::PROJECT_STACK_RESET == 0xF000);
+    assert(GraphicsMemory::PROJECT_STACK_RESET == GraphicsMemory::GRAPHICS_BASE);
 
     assert(GraphicsMemory::TILE_MAP_END + 1 == GraphicsMemory::TILE_DEFINITION_BASE);
     assert(GraphicsMemory::TILE_DEFINITION_END + 1 == GraphicsMemory::PALETTE_BASE);
@@ -2054,7 +2054,7 @@ void testRegisterFile() {
     RegisterFile registers;
 
     assert(registers.getRegister(0) == 0x0000);
-    assert(registers.getRegister(2) == 0xEFFE);
+    assert(registers.getRegister(2) == 0xF000);
 
     for (int i = 0; i < 8; i++) {
         registers.setRegister(i, 0x1111 + i);
@@ -2064,7 +2064,7 @@ void testRegisterFile() {
     registers.reset();
 
     assert(registers.getRegister(0) == 0x0000);
-    assert(registers.getRegister(2) == 0xEFFE);
+    assert(registers.getRegister(2) == 0xF000);
 
     printf("[PASS] Register file test passed\n");
 }
@@ -2094,7 +2094,7 @@ void testCPUReset() {
     CPU cpu;
 
     assert(cpu.getPC() == 0x0020);
-    assert(cpu.getSP() == 0xEFFE);
+    assert(cpu.getSP() == 0xF000);
 
     cpu.setPC(0x1234);
     cpu.setSP(0xABCD);
@@ -2102,7 +2102,7 @@ void testCPUReset() {
     cpu.reset();
 
     assert(cpu.getPC() == 0x0020);
-    assert(cpu.getSP() == 0xEFFE);
+    assert(cpu.getSP() == 0xF000);
 
     printf("[PASS] CPU reset test passed\n");
 }
@@ -2482,12 +2482,12 @@ void testImmediateLogicExecution() {
     cpu.getRegisters().setRegister(7, 0xAAAA);
     cpu.getMemory().write16(0x0024, makeI(0x7F, 7, 6));
     cpu.step();
-    assert(cpu.getRegisters().getRegister(7) == 0xAAD5);
+    assert(cpu.getRegisters().getRegister(7) == 0x5555);
 
     cpu.getRegisters().setRegister(1, 0xFFFF);
     cpu.getMemory().write16(0x0026, makeI(0x7F, 1, 5));
     cpu.step();
-    assert(cpu.getRegisters().getRegister(1) == 0x007F);
+    assert(cpu.getRegisters().getRegister(1) == 0xFFFF);
 
     printf("[PASS] Immediate logic test passed\n");
 }
@@ -2601,21 +2601,21 @@ void testMemoryAndStackEdgeCases() {
     assert(CPU::isWordAlignedAddress(0x3000) == true);
     assert(CPU::isWordAlignedAddress(0x3001) == false);
 
-    // Odd-address SW is rejected and must not change either neighbouring byte.
+    // Odd-address SW writes a little-endian word starting at the odd byte.
     cpu.getMemory().write8(0x3001, 0xAA);
     cpu.getMemory().write8(0x3002, 0xBB);
     cpu.getRegisters().setRegister(3, 0x3001);
     cpu.getRegisters().setRegister(4, 0xBEEF);
     cpu.getMemory().write16(0x0020, makeS(0, 4, 3, 1));
     cpu.step();
-    assert(cpu.getMemory().read8(0x3001) == 0xAA);
-    assert(cpu.getMemory().read8(0x3002) == 0xBB);
+    assert(cpu.getMemory().read8(0x3001) == 0xEF);
+    assert(cpu.getMemory().read8(0x3002) == 0xBE);
 
-    // Odd-address LW is rejected and must preserve its destination register.
+    // Odd-address LW reads the little-endian word from the odd byte.
     cpu.getRegisters().setRegister(5, 0xCAFE);
     cpu.getMemory().write16(0x0022, makeL(0, 3, 5, 1));
     cpu.step();
-    assert(cpu.getRegisters().getRegister(5) == 0xCAFE);
+    assert(cpu.getRegisters().getRegister(5) == 0xBEEF);
 
     // An aligned CPU word store reaches the memory-mapped tile map directly.
     cpu.setPC(0x0100);
@@ -2628,11 +2628,11 @@ void testMemoryAndStackEdgeCases() {
     assert(graphics.readTileIndex(0, 0) == 1);
     assert(graphics.readTileIndex(1, 0) == 2);
 
-    // The project stack is full-descending: PUSH pre-decrements SP by two,
-    // then stores at the new aligned address below the graphics region.
+    // The stack starts at 0xF000, then PUSH pre-decrements SP by two
+    // and stores below the graphics region.
     CPU stackCpu;
     assert(stackCpu.getSP() == GraphicsMemory::PROJECT_STACK_RESET);
-    assert(stackCpu.getSP() < GraphicsMemory::GRAPHICS_BASE);
+    assert(stackCpu.getSP() == GraphicsMemory::GRAPHICS_BASE);
 
     stackCpu.getRegisters().setRegister(3, 0xBEEF);
     stackCpu.getMemory().write16(0x0020, makeI(-2, 2, 0));
@@ -2640,10 +2640,10 @@ void testMemoryAndStackEdgeCases() {
     stackCpu.step();
     stackCpu.step();
 
-    assert(stackCpu.getSP() == 0xEFFC);
+    assert(stackCpu.getSP() == 0xEFFE);
     assert(CPU::isWordAlignedAddress(stackCpu.getSP()) == true);
     assert(stackCpu.getSP() < GraphicsMemory::GRAPHICS_BASE);
-    assert(stackCpu.getMemory().read16(0xEFFC) == 0xBEEF);
+    assert(stackCpu.getMemory().read16(0xEFFE) == 0xBEEF);
     assert(stackCpu.getMemory().read16(GraphicsMemory::GRAPHICS_BASE) == 0x0000);
 
     printf("[PASS] Memory/stack edge-case test passed\n");
@@ -3548,11 +3548,11 @@ void testEntireSimulatorReset() {
 
     assert(cpu.isHalted() == false);
     assert(cpu.getPC() == 0x0020);
-    assert(cpu.getSP() == 0xEFFE);
+    assert(cpu.getSP() == 0xF000);
 
     for (int i = 0; i < 8; i++) {
         if (i == 2) {
-            assert(cpu.getRegisters().getRegister(i) == 0xEFFE);
+            assert(cpu.getRegisters().getRegister(i) == 0xF000);
         }
         else {
             assert(cpu.getRegisters().getRegister(i) == 0x0000);
@@ -3876,8 +3876,8 @@ void testFinalBinPrograms() {
     runCpuUntilHalt(cpu, 50);
 
     assert(strcmp(cpu.getOutput(), "42\n-1") == 0);
-    assert(cpu.getMemory().read8(0xEFFC) == 0x2A);
-    assert(cpu.getMemory().read8(0xEFFD) == 0xFF);
+    assert(cpu.getMemory().read8(0xEFFE) == 0x2A);
+    assert(cpu.getMemory().read8(0xEFFF) == 0xFF);
 
     remove(memoryBin);
 

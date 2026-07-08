@@ -1,0 +1,185 @@
+ZX16 Assembler Listing
+==================================================
+
+   1      # Test 06: stack and subroutines
+   2      # It checks the project stack reset, PUSH/POP, CALL/RET, and nested calls.
+   3      
+   4      .text
+   5      
+   6      start:
+   7          li16 a0, title
+   8          ecall 0x012
+   9      
+  10          # The project stack starts at 0xEFFE.
+  11          li16 x3, 0xEFFE
+  12          beq sp, x3, reset_ok
+  13          j reset_fail
+  14      reset_ok:
+  15          # PUSH moves down by two and POP restores the value and SP.
+  16          li16 x3, 0x1234
+  17          push x3
+  18          li16 x4, 0xEFFC
+  19          beq sp, x4, push_address_ok
+  20          j stack_fail
+  21      push_address_ok:
+  22          lw x5, 0(sp)
+  23          beq x5, x3, push_value_ok
+  24          j stack_fail
+  25      push_value_ok:
+  26          li x5, 0
+  27          pop x5
+  28          beq x5, x3, pop_value_ok
+  29          j stack_fail
+  30      pop_value_ok:
+  31          li16 x4, 0xEFFE
+  32          beq sp, x4, stack_ok
+  33          j stack_fail
+  34      stack_ok:
+  35          li16 a0, stack_pass
+  36          ecall 0x012
+  37      
+  38          # A simple CALL adds two and RET comes back here.
+  39          li x3, 5
+  40          call add_two
+  41      after_add_two:
+  42          li x4, 7
+  43          beq x3, x4, call_ok
+  44          j call_fail
+  45      call_ok:
+  46          li16 a0, call_pass
+  47          ecall 0x012
+  48      
+  49          # The outer function saves ra before making a nested CALL.
+  50          li x3, 10
+  51          call outer_function
+  52      after_outer:
+  53          li x4, 13
+  54          beq x3, x4, nested_value_ok
+  55          j nested_fail
+  56      nested_value_ok:
+  57          li16 x4, 0xEFFE
+  58          beq sp, x4, nested_ok
+  59          j nested_fail
+  60      nested_ok:
+  61          li16 a0, nested_pass
+  62          ecall 0x012
+  63      
+  64          # The downward-growing stack stayed below graphics memory at 0xF000.
+  65          li16 x4, 0xF000
+  66          bltu sp, x4, safe_ok
+  67          j safe_fail
+  68      safe_ok:
+  69          li16 a0, safe_pass
+  70          ecall 0x012
+  71      
+  72          li16 a0, all_pass
+  73          ecall 0x012
+  74          ecall 0x3FF
+  75      
+  76      add_two:
+  77          addi x3, 2
+  78          li16 x4, after_add_two
+  79          beq ra, x4, add_two_return_ok
+  80          j call_fail
+  81      add_two_return_ok:
+  82          ret
+  83      
+  84      outer_function:
+  85          push ra
+  86          addi x3, 1
+  87          call inner_function
+  88          pop ra
+  89          ret
+  90      
+  91      inner_function:
+  92          addi x3, 2
+  93          ret
+  94      
+  95      reset_fail:
+  96          li16 a0, reset_bad
+  97          ecall 0x012
+  98          ecall 0x3FF
+  99      stack_fail:
+ 100          li16 a0, stack_bad
+ 101          ecall 0x012
+ 102          ecall 0x3FF
+ 103      call_fail:
+ 104          li16 a0, call_bad
+ 105          ecall 0x012
+ 106          ecall 0x3FF
+ 107      nested_fail:
+ 108          li16 a0, nested_bad
+ 109          ecall 0x012
+ 110          ecall 0x3FF
+ 111      safe_fail:
+ 112          li16 a0, safe_bad
+ 113          ecall 0x012
+ 114          ecall 0x3FF
+ 115      
+ 116      .data
+ 117      title:       .string "TEST 06 - STACK AND SUBROUTINES\n"
+ 118      stack_pass:  .string "RESET SP PUSH AND POP: PASS\n"
+ 119      call_pass:   .string "CALL AND RET: PASS\n"
+ 120      nested_pass: .string "NESTED CALL: PASS\n"
+ 121      safe_pass:   .string "STACK BELOW 0XF000: PASS\n"
+ 122      all_pass:    .string "TEST 06 RESULT: PASS\n"
+ 123      reset_bad:   .string "TEST 06 RESULT: FAIL AT RESET SP\n"
+ 124      stack_bad:   .string "TEST 06 RESULT: FAIL AT PUSH OR POP\n"
+ 125      call_bad:    .string "TEST 06 RESULT: FAIL AT CALL OR RET\n"
+ 126      nested_bad:  .string "TEST 06 RESULT: FAIL AT NESTED CALL\n"
+ 127      safe_bad:    .string "TEST 06 RESULT: FAIL AT STACK SAFETY\n"
+
+Symbol Table:
+------------------------------
+A0                   = 0x0006  (global)
+A1                   = 0x0007  (global)
+CODE_START           = 0x0020  (global)
+MEM_SIZE             = 0x10000  (global)
+MMIO_BASE            = 0xF000  (global)
+RA                   = 0x0001  (global)
+RESET_VECTOR         = 0x0000  (global)
+S0                   = 0x0003  (global)
+S1                   = 0x0004  (global)
+SP                   = 0x0002  (global)
+T0                   = 0x0000  (global)
+T1                   = 0x0005  (global)
+add_two              = 0x009A  (local)
+add_two_return_ok    = 0x00A4  (local)
+after_add_two        = 0x0060  (local)
+after_outer          = 0x0070  (local)
+all_pass             = 0x807F  (local)
+call_bad             = 0x80DC  (local)
+call_fail            = 0x00C8  (local)
+call_ok              = 0x0066  (local)
+call_pass            = 0x803E  (local)
+inner_function       = 0x00B4  (local)
+nested_bad           = 0x8101  (local)
+nested_fail          = 0x00D0  (local)
+nested_ok            = 0x007E  (local)
+nested_pass          = 0x8052  (local)
+nested_value_ok      = 0x0076  (local)
+outer_function       = 0x00A6  (local)
+pop_value_ok         = 0x004E  (local)
+push_address_ok      = 0x003E  (local)
+push_value_ok        = 0x0044  (local)
+reset_bad            = 0x8095  (local)
+reset_fail           = 0x00B8  (local)
+reset_ok             = 0x002E  (local)
+safe_bad             = 0x8126  (local)
+safe_fail            = 0x00D8  (local)
+safe_ok              = 0x008C  (local)
+safe_pass            = 0x8065  (local)
+stack_bad            = 0x80B7  (local)
+stack_fail           = 0x00C0  (local)
+stack_ok             = 0x0056  (local)
+stack_pass           = 0x8021  (local)
+start                = 0x0020  (local)
+title                = 0x8000  (local)
+
+Statistics:
+  Code size:    192 bytes
+  Data size:    332 bytes
+  BSS size:     0 bytes
+  Total size:   524 bytes
+  Symbols:      46
+  Lines:        127

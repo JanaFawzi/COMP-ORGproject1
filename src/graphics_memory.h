@@ -48,7 +48,7 @@ public:
     static constexpr unsigned short RESERVED_MMIO_BASE = 0xFA10;
     static constexpr unsigned short RESERVED_MMIO_END = 0xFFFF;
 
-    static constexpr unsigned short PROJECT_STACK_RESET = 0xEFFE;
+    static constexpr unsigned short PROJECT_STACK_RESET = 0xF000;
     static constexpr unsigned short INVALID_ADDRESS = 0xFFFF;
 
     static constexpr int REGION_NONE = 0;
