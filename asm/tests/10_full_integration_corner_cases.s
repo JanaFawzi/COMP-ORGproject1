@@ -94,7 +94,7 @@ control_ok:
     # Stack and subroutines: push/pop plus nested call preserving ra.
     li16 x3, 0xBEEF
     push x3
-    li16 x4, 0xEFFE
+    li16 x4, 0xEFFC
     beq sp, x4, push_sp_ok
     li16 a0, stack_bad
     ecall 0x012
@@ -114,7 +114,7 @@ pop_value_ok:
     ecall 0x012
     ecall 0x3FF
 call_value_ok:
-    li16 x4, 0xF000
+    li16 x4, 0xEFFE
     beq sp, x4, stack_ok
     li16 a0, stack_bad
     ecall 0x012

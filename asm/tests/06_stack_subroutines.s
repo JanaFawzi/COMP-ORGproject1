@@ -7,15 +7,15 @@ start:
     li16 a0, title
     ecall 0x012
 
-    # The stack starts at 0xF000.
-    li16 x3, 0xF000
+    # The project stack starts below graphics memory at 0xEFFE.
+    li16 x3, 0xEFFE
     beq sp, x3, reset_ok
     j reset_fail
 reset_ok:
     # PUSH moves down by two and POP restores the value and SP.
     li16 x3, 0x1234
     push x3
-    li16 x4, 0xEFFE
+    li16 x4, 0xEFFC
     beq sp, x4, push_address_ok
     j stack_fail
 push_address_ok:
@@ -28,7 +28,7 @@ push_value_ok:
     beq x5, x3, pop_value_ok
     j stack_fail
 pop_value_ok:
-    li16 x4, 0xF000
+    li16 x4, 0xEFFE
     beq sp, x4, stack_ok
     j stack_fail
 stack_ok:
@@ -54,18 +54,19 @@ after_outer:
     beq x3, x4, nested_value_ok
     j nested_fail
 nested_value_ok:
-    li16 x4, 0xF000
+    li16 x4, 0xEFFE
     beq sp, x4, nested_ok
     j nested_fail
 nested_ok:
     li16 a0, nested_pass
     ecall 0x012
 
-    # The empty stack returns to 0xF000, but data was pushed below it.
-    li16 x4, 0xF000
+    # The empty stack returns to 0xEFFE, below the graphics region.
+    li16 x4, 0xEFFE
     beq sp, x4, safe_sp_ok
     j safe_fail
 safe_sp_ok:
+    li16 x4, 0xF000
     lbu x5, 0(x4)
     li x0, 0
     beq x5, x0, safe_ok
@@ -123,7 +124,7 @@ title:       .string "TEST 06 - STACK AND SUBROUTINES\n"
 stack_pass:  .string "RESET SP PUSH AND POP: PASS\n"
 call_pass:   .string "CALL AND RET: PASS\n"
 nested_pass: .string "NESTED CALL: PASS\n"
-safe_pass:   .string "STACK STORES BELOW 0XF000: PASS\n"
+safe_pass:   .string "STACK RESET BELOW GRAPHICS: PASS\n"
 all_pass:    .string "TEST 06 RESULT: PASS\n"
 reset_bad:   .string "TEST 06 RESULT: FAIL AT RESET SP\n"
 stack_bad:   .string "TEST 06 RESULT: FAIL AT PUSH OR POP\n"

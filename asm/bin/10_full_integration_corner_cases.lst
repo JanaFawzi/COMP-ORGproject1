@@ -97,7 +97,7 @@ ZX16 Assembler Listing
   94          # Stack and subroutines: push/pop plus nested call preserving ra.
   95          li16 x3, 0xBEEF
   96          push x3
-  97          li16 x4, 0xEFFE
+  97          li16 x4, 0xEFFC
   98          beq sp, x4, push_sp_ok
   99          li16 a0, stack_bad
  100          ecall 0x012
@@ -117,7 +117,7 @@ ZX16 Assembler Listing
  114          ecall 0x012
  115          ecall 0x3FF
  116      call_value_ok:
- 117          li16 x4, 0xF000
+ 117          li16 x4, 0xEFFE
  118          beq sp, x4, stack_ok
  119          li16 a0, stack_bad
  120          ecall 0x012

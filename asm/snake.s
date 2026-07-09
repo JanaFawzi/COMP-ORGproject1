@@ -6,6 +6,8 @@
 .text
 
 start:
+    li16 sp, 0xEFFE
+
     # Palette
     li16 x3, 0xFA00
     li x4, 0x00

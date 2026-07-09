@@ -119,8 +119,8 @@ void testGraphicsMemoryManager() {
     assert(GraphicsMemory::RESERVED_MMIO_BASE == 0xFA10);
     assert(GraphicsMemory::RESERVED_MMIO_END == 0xFFFF);
 
-    assert(GraphicsMemory::PROJECT_STACK_RESET == 0xF000);
-    assert(GraphicsMemory::PROJECT_STACK_RESET == GraphicsMemory::GRAPHICS_BASE);
+    assert(GraphicsMemory::PROJECT_STACK_RESET == 0xEFFE);
+    assert(GraphicsMemory::PROJECT_STACK_RESET < GraphicsMemory::GRAPHICS_BASE);
 
     assert(GraphicsMemory::TILE_MAP_END + 1 == GraphicsMemory::TILE_DEFINITION_BASE);
     assert(GraphicsMemory::TILE_DEFINITION_END + 1 == GraphicsMemory::PALETTE_BASE);
@@ -2054,7 +2054,7 @@ void testRegisterFile() {
     RegisterFile registers;
 
     assert(registers.getRegister(0) == 0x0000);
-    assert(registers.getRegister(2) == 0xF000);
+    assert(registers.getRegister(2) == 0xEFFE);
 
     for (int i = 0; i < 8; i++) {
         registers.setRegister(i, 0x1111 + i);
@@ -2064,7 +2064,7 @@ void testRegisterFile() {
     registers.reset();
 
     assert(registers.getRegister(0) == 0x0000);
-    assert(registers.getRegister(2) == 0xF000);
+    assert(registers.getRegister(2) == 0xEFFE);
 
     printf("[PASS] Register file test passed\n");
 }
@@ -2094,7 +2094,7 @@ void testCPUReset() {
     CPU cpu;
 
     assert(cpu.getPC() == 0x0020);
-    assert(cpu.getSP() == 0xF000);
+    assert(cpu.getSP() == 0xEFFE);
 
     cpu.setPC(0x1234);
     cpu.setSP(0xABCD);
@@ -2102,7 +2102,7 @@ void testCPUReset() {
     cpu.reset();
 
     assert(cpu.getPC() == 0x0020);
-    assert(cpu.getSP() == 0xF000);
+    assert(cpu.getSP() == 0xEFFE);
 
     printf("[PASS] CPU reset test passed\n");
 }
@@ -2628,11 +2628,10 @@ void testMemoryAndStackEdgeCases() {
     assert(graphics.readTileIndex(0, 0) == 1);
     assert(graphics.readTileIndex(1, 0) == 2);
 
-    // The stack starts at 0xF000, then PUSH pre-decrements SP by two
-    // and stores below the graphics region.
+    // The stack starts below graphics memory, then PUSH pre-decrements SP by two.
     CPU stackCpu;
     assert(stackCpu.getSP() == GraphicsMemory::PROJECT_STACK_RESET);
-    assert(stackCpu.getSP() == GraphicsMemory::GRAPHICS_BASE);
+    assert(stackCpu.getSP() < GraphicsMemory::GRAPHICS_BASE);
 
     stackCpu.getRegisters().setRegister(3, 0xBEEF);
     stackCpu.getMemory().write16(0x0020, makeI(-2, 2, 0));
@@ -2640,10 +2639,10 @@ void testMemoryAndStackEdgeCases() {
     stackCpu.step();
     stackCpu.step();
 
-    assert(stackCpu.getSP() == 0xEFFE);
+    assert(stackCpu.getSP() == 0xEFFC);
     assert(CPU::isWordAlignedAddress(stackCpu.getSP()) == true);
     assert(stackCpu.getSP() < GraphicsMemory::GRAPHICS_BASE);
-    assert(stackCpu.getMemory().read16(0xEFFE) == 0xBEEF);
+    assert(stackCpu.getMemory().read16(0xEFFC) == 0xBEEF);
     assert(stackCpu.getMemory().read16(GraphicsMemory::GRAPHICS_BASE) == 0x0000);
 
     printf("[PASS] Memory/stack edge-case test passed\n");
@@ -3385,6 +3384,7 @@ void testSnakeRuntimeDisplaysEmptyGameScreen() {
     unsigned char paletteIndex = 0;
 
     assert(cpu.getPC() == 0x0020);
+    assert(cpu.getSP() == GraphicsMemory::PROJECT_STACK_RESET);
     assert(cpu.getRegisters().getRegister(4) == 0);
 
     assert(graphics.readPaletteColor(0) == 0x00);
@@ -3548,11 +3548,11 @@ void testEntireSimulatorReset() {
 
     assert(cpu.isHalted() == false);
     assert(cpu.getPC() == 0x0020);
-    assert(cpu.getSP() == 0xF000);
+    assert(cpu.getSP() == 0xEFFE);
 
     for (int i = 0; i < 8; i++) {
         if (i == 2) {
-            assert(cpu.getRegisters().getRegister(i) == 0xF000);
+            assert(cpu.getRegisters().getRegister(i) == 0xEFFE);
         }
         else {
             assert(cpu.getRegisters().getRegister(i) == 0x0000);
@@ -3876,8 +3876,8 @@ void testFinalBinPrograms() {
     runCpuUntilHalt(cpu, 50);
 
     assert(strcmp(cpu.getOutput(), "42\n-1") == 0);
-    assert(cpu.getMemory().read8(0xEFFE) == 0x2A);
-    assert(cpu.getMemory().read8(0xEFFF) == 0xFF);
+    assert(cpu.getMemory().read8(0xEFFC) == 0x2A);
+    assert(cpu.getMemory().read8(0xEFFD) == 0xFF);
 
     remove(memoryBin);
 

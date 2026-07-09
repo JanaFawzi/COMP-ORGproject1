@@ -5,6 +5,7 @@
 
 void SnakeRuntime::initialize(CPU& cpu) {
     cpu.reset();
+    cpu.setSP(GraphicsMemory::PROJECT_STACK_RESET);
 
     GraphicsMemory graphics(cpu.getMemory());
 

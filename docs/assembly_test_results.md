@@ -86,8 +86,8 @@ File: [`06_stack_subroutines.s`](../asm/tests/06_stack_subroutines.s)
 
 Checks: reset SP, `PUSH`, `POP`, `CALL`, `RET`, and a nested call.
 
-Expected: SP starts at `0xF000`, a push moves it to `0xEFFE`, a pop restores it,
-and stack data is stored below `0xF000`.
+Expected: SP starts at `0xEFFE`, a push moves it to `0xEFFC`, a pop restores it,
+and stack data stays below the graphics region at `0xF000`.
 
 Actual: PASS.
 
@@ -145,7 +145,7 @@ Checks: register wraparound and writable `x0`, odd-address memory access, sign
 extension, loops, signed/unsigned comparisons, stack push/pop, nested calls,
 RNG/keyboard/console services, and graphics VRAM edge addresses.
 
-Expected: the combined program keeps `sp` balanced at `0xF000`, gets the seeded
+Expected: the combined program keeps `sp` balanced at `0xEFFE`, gets the seeded
 RNG value `0x3830`, sees no unattended keyboard input, writes the final tile-map
 cell, final tile-definition byte, and final palette byte, then prints PASS.
 

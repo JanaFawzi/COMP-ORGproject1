@@ -11,7 +11,7 @@ void CPU::reset() {
     registers.reset();
 
     pc = 0x0020;
-    registers.setRegister(2, 0xF000);
+    registers.setRegister(2, 0xEFFE);
 
     lastInstruction = 0x0000;
     lastHandler = -1;
