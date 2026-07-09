@@ -8,6 +8,9 @@
 start:
     li16 sp, 0xEFFE
 
+    li a0, 35
+    ecall 0x041
+
     # Palette
     li16 x3, 0xFA00
     li x4, 0x00
@@ -175,6 +178,10 @@ start_game:
     j input_ready
 
 game_loop:
+    li16 a0, 660
+    li16 a1, 120
+    ecall 0x040
+
     li16 x3, 3000
 delay_loop:
     dec x3
@@ -369,14 +376,40 @@ food_next:
     lw x4, 0(x3)
     addi x4, 37
 
-    li16 x5, 260
-    bltu x4, x5, food_try
+    li16 x5, 280
+    bltu x4, x5, food_next_try
     j food_wrap
+
+food_next_try:
+    j food_try
 
 food_wrap:
     li x4, 42
 
 food_try:
+    li x5, 20
+    bltu x4, x5, food_try_advance
+
+    li16 x5, 280
+    bltu x4, x5, food_check_column
+    j food_wrap
+
+food_try_advance:
+    j food_advance
+
+food_check_column:
+    mv x5, x4
+food_column_reduce:
+    li x6, 20
+    bltu x5, x6, food_column_ready
+    addi x5, -20
+    j food_column_reduce
+food_column_ready:
+    li x6, 0
+    beq x5, x6, food_advance
+    li x6, 19
+    beq x5, x6, food_advance
+
     li16 x3, 0xF000
     add x3, x4
     lbu x5, 0(x3)
@@ -386,9 +419,12 @@ food_try:
 
 food_advance:
     addi x4, 37
-    li16 x5, 260
-    bltu x4, x5, food_try
+    li16 x5, 280
+    bltu x4, x5, food_advance_try
     j food_wrap
+
+food_advance_try:
+    j food_try
 
 food_place:
     li16 x3, pending_head
@@ -427,6 +463,10 @@ save_next_food:
     j game_loop
 
 game_over:
+    li16 a0, 180
+    li16 a1, 700
+    ecall 0x040
+
     li16 a0, game_over_text
     ecall 0x012
     li16 x3, score
