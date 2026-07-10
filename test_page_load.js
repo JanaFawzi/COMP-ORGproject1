@@ -165,6 +165,10 @@ makeElement("memoryEditText");
 makeElement("breakpointText");
 makeElement("consoleText");
 makeElement("runButton");
+makeElement("speedButtons");
+makeElement("slugButton");
+makeElement("wormButton");
+makeElement("pythonButton");
 makeElement("pauseButton");
 makeElement("stepButton");
 makeElement("runCursorButton");
@@ -528,6 +532,12 @@ setTimeout(function () {
     pendingStopAudio = true;
 
     elements.runButton.click();
+
+    if (elements.speedButtons.classList.contains("hidden")) {
+        throw new Error("Start did not show the speed buttons.");
+    }
+
+    elements.wormButton.click();
 
     if (pendingStopAudio) {
         throw new Error("Stop-audio request was not cleared.");

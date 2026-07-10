@@ -13,6 +13,10 @@ const breakpointText = document.getElementById("breakpointText") as HTMLElement;
 const consoleText = document.getElementById("consoleText") as HTMLElement;
 
 const runButton = document.getElementById("runButton") as HTMLButtonElement;
+const speedButtons = document.getElementById("speedButtons") as HTMLElement;
+const slugButton = document.getElementById("slugButton") as HTMLButtonElement;
+const wormButton = document.getElementById("wormButton") as HTMLButtonElement;
+const pythonButton = document.getElementById("pythonButton") as HTMLButtonElement;
 const pauseButton = document.getElementById("pauseButton") as HTMLButtonElement;
 const stepButton = document.getElementById("stepButton") as HTMLButtonElement;
 const runCursorButton = document.getElementById("runCursorButton") as HTMLButtonElement;
@@ -43,7 +47,9 @@ const zx16KeyRight = 4;
 const zx16KeySpace = 5;
 const zx16KeyEnter = 6;
 const zx16KeyEscape = 7;
-const snakeStepsPerFrame = 850;
+const slugStepsPerFrame = 550;
+const wormStepsPerFrame = 850;
+const pythonStepsPerFrame = 1150;
 const debugStepsPerFrame = 60;
 const snakeInternalsRefreshFrames = 5;
 
@@ -95,6 +101,8 @@ let cursorAddress = -1;
 let loadedProgramName = "Demo";
 let screenImage: any = null;
 let drawFrameCount = 0;
+let snakeStepsPerFrame = wormStepsPerFrame;
+let selectedSpeedName = "";
 
 function toHex16(value: number): string {
     return (value & 0xffff).toString(16).toUpperCase().padStart(4, "0");
@@ -987,6 +995,9 @@ function refreshControls(): void {
     pauseButton.disabled = !running;
     stepButton.disabled = running || halted;
     runCursorButton.disabled = running || halted || cursorAddress < 0;
+    slugButton.disabled = running || halted;
+    wormButton.disabled = running || halted;
+    pythonButton.disabled = running || halted;
     scoreText.textContent = "Score: " + getSnakeScore();
 
     if (halted && loadedProgramName === "Snake" && getOutput().indexOf("GAME OVER") >= 0) {
@@ -999,7 +1010,7 @@ function refreshControls(): void {
         statusText.textContent = programText + "RUN TO CURSOR";
     }
     else if (running) {
-        statusText.textContent = programText + "RUNNING";
+        statusText.textContent = programText + selectedSpeedName + " RUNNING";
     }
     else {
         statusText.textContent = programText + "PAUSED";
@@ -1204,7 +1215,19 @@ internalsButton.addEventListener("click", (): void => {
 function startRunningFromButton(): void {
     prepareAudioFromUserEvent();
     frameNumber++;
+    speedButtons.classList.add("hidden");
     setRunning(true);
+}
+
+function showSpeedButtons(): void {
+    speedButtons.classList.remove("hidden");
+    statusText.textContent = "Choose speed";
+}
+
+function startSnakeWithSpeed(speedName: string, stepsPerFrame: number): void {
+    snakeStepsPerFrame = stepsPerFrame;
+    selectedSpeedName = speedName;
+    startRunningFromButton();
 }
 
 function restartSnakeFromButton(): void {
@@ -1213,15 +1236,29 @@ function restartSnakeFromButton(): void {
     frameNumber = 0;
     running = false;
     runToCursorActive = false;
+    selectedSpeedName = "";
+    speedButtons.classList.add("hidden");
     loadSnakeProgram();
 }
 
 runButton.addEventListener("click", (): void => {
-    startRunningFromButton();
+    showSpeedButtons();
 });
 
 internalRunButton.addEventListener("click", (): void => {
-    startRunningFromButton();
+    startSnakeWithSpeed("Worm", wormStepsPerFrame);
+});
+
+slugButton.addEventListener("click", (): void => {
+    startSnakeWithSpeed("Slug", slugStepsPerFrame);
+});
+
+wormButton.addEventListener("click", (): void => {
+    startSnakeWithSpeed("Worm", wormStepsPerFrame);
+});
+
+pythonButton.addEventListener("click", (): void => {
+    startSnakeWithSpeed("Python", pythonStepsPerFrame);
 });
 
 pauseButton.addEventListener("click", (): void => {
