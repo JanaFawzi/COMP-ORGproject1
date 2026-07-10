@@ -10,6 +10,7 @@ const ramText = document.getElementById("ramText") as HTMLElement;
 const cursorText = document.getElementById("cursorText") as HTMLElement;
 const memoryEditText = document.getElementById("memoryEditText") as HTMLElement;
 const breakpointText = document.getElementById("breakpointText") as HTMLElement;
+const disassemblyText = document.getElementById("disassemblyText") as HTMLElement;
 const consoleText = document.getElementById("consoleText") as HTMLElement;
 
 const runButton = document.getElementById("runButton") as HTMLButtonElement;
@@ -978,6 +979,15 @@ function renderConsole(keyCode: number): void {
     consoleText.textContent = text;
 }
 
+function renderDisassembly(): void {
+    if (typeof zx16Programs === "undefined" || !zx16Programs.snakeListing) {
+        disassemblyText.textContent = "Snake disassembly was not found.";
+        return;
+    }
+
+    disassemblyText.textContent = zx16Programs.snakeListing;
+}
+
 function getSnakeScore(): number {
     if (read16 === null || loadedProgramName !== "Snake") {
         return 0;
@@ -1022,6 +1032,7 @@ function updateInternals(): void {
 
     renderRegisters();
     renderMemory();
+    renderDisassembly();
     renderConsole(keyCode);
     refreshControls();
 }

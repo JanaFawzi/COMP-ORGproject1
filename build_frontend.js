@@ -5,6 +5,7 @@ const inputPath = path.join(__dirname, "src", "main.ts");
 const outputDir = path.join(__dirname, "build");
 const outputPath = path.join(outputDir, "main.js");
 const snakeBinPath = path.join(__dirname, "..", "asm", "bin", "snake.bin");
+const snakeListPath = path.join(__dirname, "..", "asm", "bin", "snake.lst");
 const programsPath = path.join(outputDir, "programs.js");
 
 let code = fs.readFileSync(inputPath, "utf8");
@@ -27,9 +28,16 @@ console.log("Built web\\build\\main.js");
 
 if (fs.existsSync(snakeBinPath)) {
     const snakeBytes = Array.from(fs.readFileSync(snakeBinPath));
+    let snakeListing = "";
+
+    if (fs.existsSync(snakeListPath)) {
+        snakeListing = fs.readFileSync(snakeListPath, "utf8").replace(/\r\n/g, "\n");
+    }
+
     const programsCode =
         "window.zx16Programs = window.zx16Programs || {};\n" +
-        "window.zx16Programs.snake = [" + snakeBytes.join(",") + "];\n";
+        "window.zx16Programs.snake = [" + snakeBytes.join(",") + "];\n" +
+        "window.zx16Programs.snakeListing = " + JSON.stringify(snakeListing) + ";\n";
 
     fs.writeFileSync(programsPath, programsCode);
     console.log("Built web\\build\\programs.js");
