@@ -1,5 +1,7 @@
-build/
-dist/
+/build/
+/dist/
+/web-build/
+/tools/emsdk/
 
 *.exe
 *.out

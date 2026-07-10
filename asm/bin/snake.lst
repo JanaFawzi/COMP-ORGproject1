@@ -137,359 +137,435 @@ ZX16 Assembler Listing
  134          li x4, 0
  135          sw x4, 0(x3)
  136      
- 137          li16 x3, food0
- 138          li16 x4, 170
- 139          sw x4, 0(x3)
- 140      
- 141          li16 x3, food1
- 142          li16 x4, 207
- 143          sw x4, 0(x3)
+ 137          # Initial snake draw.
+ 138          li x4, 1
+ 139          li16 x3, 0xF094
+ 140          sb x4, 0(x3)
+ 141          sb x4, 1(x3)
+ 142          sb x4, 2(x3)
+ 143          sb x4, 3(x3)
  144      
- 145          li16 x3, food2
- 146          li16 x4, 228
- 147          sw x4, 0(x3)
- 148      
- 149          # Initial draw. After this, wait for the first key press.
- 150          li x4, 2
- 151          li16 x3, 0xF0AA
- 152          sb x4, 0(x3)
- 153          li16 x3, 0xF0CF
- 154          sb x4, 0(x3)
- 155          li16 x3, 0xF0E4
- 156          sb x4, 0(x3)
- 157      
- 158          li x4, 1
- 159          li16 x3, 0xF094
- 160          sb x4, 0(x3)
- 161          sb x4, 1(x3)
- 162          sb x4, 2(x3)
- 163          sb x4, 3(x3)
- 164      
- 165      wait_for_start:
- 166          ecall 0x030
- 167          li x5, 1
- 168          beq a0, x5, start_game
- 169          li x5, 2
- 170          beq a0, x5, start_game
- 171          li x5, 3
- 172          beq a0, x5, start_game
- 173          li x5, 4
- 174          beq a0, x5, start_game
- 175          j wait_for_start
- 176      
- 177      start_game:
- 178          j input_ready
- 179      
- 180      game_loop:
- 181          li16 a0, 660
- 182          li16 a1, 120
- 183          ecall 0x040
- 184      
- 185          li16 x3, 3000
- 186      delay_loop:
- 187          dec x3
- 188          bnz x3, delay_loop
- 189      
- 190          ecall 0x030
- 191      
- 192      input_ready:
- 193          li x5, 1
- 194          beq a0, x5, set_up
- 195          j check_down
- 196      set_up:
- 197          li16 x3, direction
- 198          lw x6, 0(x3)
- 199          li x5, 20
- 200          bne x6, x5, set_up_apply
- 201          j direction_done
- 202      set_up_apply:
- 203          li x4, -20
- 204          sw x4, 0(x3)
- 205          j direction_done
- 206      
- 207      check_down:
- 208          li x5, 2
- 209          beq a0, x5, set_down
- 210          j check_left
- 211      set_down:
- 212          li16 x3, direction
- 213          lw x6, 0(x3)
- 214          li x5, -20
- 215          bne x6, x5, set_down_apply
- 216          j direction_done
- 217      set_down_apply:
- 218          li x4, 20
- 219          sw x4, 0(x3)
- 220          j direction_done
- 221      
- 222      check_left:
- 223          li x5, 3
- 224          beq a0, x5, set_left
- 225          j check_right
- 226      set_left:
- 227          li16 x3, direction
- 228          lw x6, 0(x3)
- 229          li x5, 1
- 230          bne x6, x5, set_left_apply
- 231          j direction_done
- 232      set_left_apply:
- 233          li x4, -1
- 234          sw x4, 0(x3)
- 235          j direction_done
- 236      
- 237      check_right:
- 238          li x5, 4
- 239          beq a0, x5, set_right
- 240          j direction_done
- 241      set_right:
- 242          li16 x3, direction
- 243          lw x6, 0(x3)
- 244          li x5, -1
- 245          bne x6, x5, set_right_apply
- 246          j direction_done
- 247      set_right_apply:
- 248          li x4, 1
- 249          sw x4, 0(x3)
- 250      
- 251      direction_done:
- 252          # x4 = new head offset
- 253          li16 x3, length
- 254          lw x5, 0(x3)
- 255          dec x5
- 256          slli x5, 1
- 257          li16 x3, segments
- 258          add x3, x5
- 259          lw x4, 0(x3)
- 260      
- 261          li16 x3, direction
- 262          lw x5, 0(x3)
- 263          add x4, x5
- 264      
- 265          li16 x3, pending_head
- 266          sw x4, 0(x3)
- 267      
- 268          li16 x3, 0xF000
- 269          add x3, x4
- 270          lbu x5, 0(x3)
- 271      
- 272          li x6, 0
- 273          bne x5, x6, check_food
- 274          j normal_move
- 275      
- 276      check_food:
- 277          li x6, 2
- 278          bne x5, x6, check_snake
- 279          j eat_food
- 280      
- 281      check_snake:
- 282          li x6, 1
- 283          beq x5, x6, snake_tile
- 284          j game_over
- 285      snake_tile:
- 286          li16 x3, segments
- 287          lw x6, 0(x3)
- 288          beq x4, x6, tail_tile
- 289          j game_over
- 290      tail_tile:
- 291          j normal_move
- 292      
- 293      normal_move:
- 294          # Erase old tail.
- 295          li16 x3, segments
- 296          lw x4, 0(x3)
- 297          li16 x3, 0xF000
- 298          add x3, x4
- 299          li x5, 0
- 300          sb x5, 0(x3)
- 301      
- 302          # Shift body one slot toward the tail.
- 303          li16 x3, length
- 304          lw x5, 0(x3)
- 305          dec x5
- 306          li16 x3, segments
- 307      shift_loop:
- 308          mv x6, x3
- 309          addi x6, 2
- 310          lw a1, 0(x6)
- 311          sw a1, 0(x3)
- 312          addi x3, 2
- 313          dec x5
- 314          bnz x5, shift_loop
+ 145      init_food0:
+ 146          ecall 0x021
+ 147          li16 x3, rng_byte
+ 148          sb a0, 0(x3)
+ 149          lbu x4, 0(x3)
+ 150          j init_food0_try
+ 151      init_food0_try:
+ 152          li16 x3, 0xF000
+ 153          add x3, x4
+ 154          lbu x5, 0(x3)
+ 155          li x6, 0
+ 156          beq x5, x6, init_food0_place
+ 157          addi x4, 1
+ 158          li16 x5, 300
+ 159          bltu x4, x5, init_food0_loop
+ 160          li x4, 0
+ 161      init_food0_loop:
+ 162          j init_food0_try
+ 163      init_food0_place:
+ 164          li16 x3, food0
+ 165          sw x4, 0(x3)
+ 166          li16 x3, 0xF000
+ 167          add x3, x4
+ 168          li x5, 2
+ 169          sb x5, 0(x3)
+ 170      
+ 171      init_food1:
+ 172          ecall 0x021
+ 173          li16 x3, rng_byte
+ 174          sb a0, 0(x3)
+ 175          lbu x4, 0(x3)
+ 176          j init_food1_try
+ 177      init_food1_try:
+ 178          li16 x3, 0xF000
+ 179          add x3, x4
+ 180          lbu x5, 0(x3)
+ 181          li x6, 0
+ 182          beq x5, x6, init_food1_place
+ 183          addi x4, 1
+ 184          li16 x5, 300
+ 185          bltu x4, x5, init_food1_loop
+ 186          li x4, 0
+ 187      init_food1_loop:
+ 188          j init_food1_try
+ 189      init_food1_place:
+ 190          li16 x3, food1
+ 191          sw x4, 0(x3)
+ 192          li16 x3, 0xF000
+ 193          add x3, x4
+ 194          li x5, 2
+ 195          sb x5, 0(x3)
+ 196      
+ 197      init_food2:
+ 198          ecall 0x021
+ 199          li16 x3, rng_byte
+ 200          sb a0, 0(x3)
+ 201          lbu x4, 0(x3)
+ 202          j init_food2_try
+ 203      init_food2_try:
+ 204          li16 x3, 0xF000
+ 205          add x3, x4
+ 206          lbu x5, 0(x3)
+ 207          li x6, 0
+ 208          beq x5, x6, init_food2_place
+ 209          addi x4, 1
+ 210          li16 x5, 300
+ 211          bltu x4, x5, init_food2_loop
+ 212          li x4, 0
+ 213      init_food2_loop:
+ 214          j init_food2_try
+ 215      init_food2_place:
+ 216          li16 x3, food2
+ 217          sw x4, 0(x3)
+ 218          li16 x3, 0xF000
+ 219          add x3, x4
+ 220          li x5, 2
+ 221          sb x5, 0(x3)
+ 222      
+ 223          # After this, wait for the first key press.
+ 224      wait_for_start:
+ 225          ecall 0x030
+ 226          li x5, 1
+ 227          beq a0, x5, start_game
+ 228          li x5, 2
+ 229          beq a0, x5, start_game
+ 230          li x5, 3
+ 231          beq a0, x5, start_game
+ 232          li x5, 4
+ 233          beq a0, x5, start_game
+ 234          j wait_for_start
+ 235      
+ 236      start_game:
+ 237          j input_ready
+ 238      
+ 239      game_loop:
+ 240          li16 x3, 3000
+ 241      delay_loop:
+ 242          dec x3
+ 243          bnz x3, delay_loop
+ 244      
+ 245          ecall 0x030
+ 246      
+ 247      input_ready:
+ 248          li x5, 1
+ 249          beq a0, x5, set_up
+ 250          j check_down
+ 251      set_up:
+ 252          li16 x3, direction
+ 253          lw x6, 0(x3)
+ 254          li x5, 20
+ 255          bne x6, x5, set_up_apply
+ 256          j direction_done
+ 257      set_up_apply:
+ 258          li x4, -20
+ 259          sw x4, 0(x3)
+ 260          j direction_done
+ 261      
+ 262      check_down:
+ 263          li x5, 2
+ 264          beq a0, x5, set_down
+ 265          j check_left
+ 266      set_down:
+ 267          li16 x3, direction
+ 268          lw x6, 0(x3)
+ 269          li x5, -20
+ 270          bne x6, x5, set_down_apply
+ 271          j direction_done
+ 272      set_down_apply:
+ 273          li x4, 20
+ 274          sw x4, 0(x3)
+ 275          j direction_done
+ 276      
+ 277      check_left:
+ 278          li x5, 3
+ 279          beq a0, x5, set_left
+ 280          j check_right
+ 281      set_left:
+ 282          li16 x3, direction
+ 283          lw x6, 0(x3)
+ 284          li x5, 1
+ 285          bne x6, x5, set_left_apply
+ 286          j direction_done
+ 287      set_left_apply:
+ 288          li x4, -1
+ 289          sw x4, 0(x3)
+ 290          j direction_done
+ 291      
+ 292      check_right:
+ 293          li x5, 4
+ 294          beq a0, x5, set_right
+ 295          j direction_done
+ 296      set_right:
+ 297          li16 x3, direction
+ 298          lw x6, 0(x3)
+ 299          li x5, -1
+ 300          bne x6, x5, set_right_apply
+ 301          j direction_done
+ 302      set_right_apply:
+ 303          li x4, 1
+ 304          sw x4, 0(x3)
+ 305      
+ 306      direction_done:
+ 307          # x4 = new head offset
+ 308          li16 x3, length
+ 309          lw x5, 0(x3)
+ 310          dec x5
+ 311          slli x5, 1
+ 312          li16 x3, segments
+ 313          add x3, x5
+ 314          lw x4, 0(x3)
  315      
- 316          # Store new head in the last slot.
- 317          li16 x3, length
- 318          lw x5, 0(x3)
- 319          dec x5
- 320          slli x5, 1
- 321          li16 x3, segments
- 322          add x3, x5
- 323          li16 x4, pending_head
- 324          lw x4, 0(x4)
- 325          sw x4, 0(x3)
- 326          j draw_head
- 327      
- 328      eat_food:
- 329          # Append a new head and increase length, up to 24 cells.
- 330          li16 x3, length
- 331          lw x5, 0(x3)
- 332          li x6, 24
- 333          bltu x5, x6, grow_body
- 334          j normal_move
+ 316          li16 x3, direction
+ 317          lw x5, 0(x3)
+ 318          add x4, x5
+ 319      
+ 320          li16 x3, pending_head
+ 321          sw x4, 0(x3)
+ 322      
+ 323          li16 x3, 0xF000
+ 324          add x3, x4
+ 325          lbu x5, 0(x3)
+ 326      
+ 327          li x6, 0
+ 328          bne x5, x6, check_food
+ 329          j normal_move
+ 330      
+ 331      check_food:
+ 332          li x6, 2
+ 333          bne x5, x6, check_snake
+ 334          j eat_food
  335      
- 336      grow_body:
- 337          mv x6, x5
- 338          slli x6, 1
- 339          li16 x3, segments
- 340          add x3, x6
- 341          li16 x4, pending_head
- 342          lw x4, 0(x4)
- 343          sw x4, 0(x3)
- 344      
- 345          inc x5
- 346          li16 x3, length
- 347          sw x5, 0(x3)
- 348      
- 349          li16 x3, score
- 350          lw x5, 0(x3)
- 351          inc x5
- 352          sw x5, 0(x3)
- 353      
- 354          j draw_head_after_food
- 355      
- 356      draw_head:
- 357          li16 x3, pending_head
- 358          lw x4, 0(x3)
- 359          li16 x3, 0xF000
- 360          add x3, x4
- 361          li x5, 1
- 362          sb x5, 0(x3)
- 363          j game_loop
- 364      
- 365      draw_head_after_food:
- 366          li16 x3, pending_head
- 367          lw x4, 0(x3)
- 368          li16 x3, 0xF000
- 369          add x3, x4
- 370          li x5, 1
- 371          sb x5, 0(x3)
- 372          j food_next
- 373      
- 374      food_next:
- 375          li16 x3, next_food_offset
- 376          lw x4, 0(x3)
- 377          addi x4, 37
- 378      
- 379          li16 x5, 280
- 380          bltu x4, x5, food_next_try
- 381          j food_wrap
+ 336      check_snake:
+ 337          li x6, 1
+ 338          beq x5, x6, snake_tile
+ 339          j game_over
+ 340      snake_tile:
+ 341          li16 x3, segments
+ 342          lw x6, 0(x3)
+ 343          beq x4, x6, tail_tile
+ 344          j game_over
+ 345      tail_tile:
+ 346          j normal_move
+ 347      
+ 348      normal_move:
+ 349          # Erase old tail.
+ 350          li16 x3, segments
+ 351          lw x4, 0(x3)
+ 352          li16 x3, 0xF000
+ 353          add x3, x4
+ 354          li x5, 0
+ 355          sb x5, 0(x3)
+ 356      
+ 357          # Shift body one slot toward the tail.
+ 358          li16 x3, length
+ 359          lw x5, 0(x3)
+ 360          dec x5
+ 361          li16 x3, segments
+ 362      shift_loop:
+ 363          mv x6, x3
+ 364          addi x6, 2
+ 365          lw a1, 0(x6)
+ 366          sw a1, 0(x3)
+ 367          addi x3, 2
+ 368          dec x5
+ 369          bnz x5, shift_loop
+ 370      
+ 371          # Store new head in the last slot.
+ 372          li16 x3, length
+ 373          lw x5, 0(x3)
+ 374          dec x5
+ 375          slli x5, 1
+ 376          li16 x3, segments
+ 377          add x3, x5
+ 378          li16 x4, pending_head
+ 379          lw x4, 0(x4)
+ 380          sw x4, 0(x3)
+ 381          j draw_head
  382      
- 383      food_next_try:
- 384          j food_try
- 385      
- 386      food_wrap:
- 387          li x4, 42
- 388      
- 389      food_try:
- 390          li x5, 20
- 391          bltu x4, x5, food_try_advance
- 392      
- 393          li16 x5, 280
- 394          bltu x4, x5, food_check_column
- 395          j food_wrap
- 396      
- 397      food_try_advance:
- 398          j food_advance
+ 383      eat_food:
+ 384          # Append a new head and increase length, up to 80 cells.
+ 385          li16 x3, length
+ 386          lw x5, 0(x3)
+ 387          li16 x6, 80
+ 388          bltu x5, x6, grow_body
+ 389          j max_length_food_move
+ 390      
+ 391      grow_body:
+ 392          mv x6, x5
+ 393          slli x6, 1
+ 394          li16 x3, segments
+ 395          add x3, x6
+ 396          li16 x4, pending_head
+ 397          lw x4, 0(x4)
+ 398          sw x4, 0(x3)
  399      
- 400      food_check_column:
- 401          mv x5, x4
- 402      food_column_reduce:
- 403          li x6, 20
- 404          bltu x5, x6, food_column_ready
- 405          addi x5, -20
- 406          j food_column_reduce
- 407      food_column_ready:
- 408          li x6, 0
- 409          beq x5, x6, food_advance
- 410          li x6, 19
- 411          beq x5, x6, food_advance
+ 400          inc x5
+ 401          li16 x3, length
+ 402          sw x5, 0(x3)
+ 403      
+ 404          li16 a0, 880
+ 405          li16 a1, 90
+ 406          ecall 0x040
+ 407      
+ 408          li16 x3, score
+ 409          lw x5, 0(x3)
+ 410          addi x5, 5
+ 411          sw x5, 0(x3)
  412      
- 413          li16 x3, 0xF000
- 414          add x3, x4
- 415          lbu x5, 0(x3)
- 416          li x6, 0
- 417          beq x5, x6, food_place
- 418          j food_advance
- 419      
- 420      food_advance:
- 421          addi x4, 37
- 422          li16 x5, 280
- 423          bltu x4, x5, food_advance_try
- 424          j food_wrap
- 425      
- 426      food_advance_try:
- 427          j food_try
- 428      
- 429      food_place:
- 430          li16 x3, pending_head
- 431          lw x5, 0(x3)
- 432      
- 433          li16 x3, food0
- 434          lw x6, 0(x3)
- 435          beq x5, x6, replace_food0
- 436          j check_replace_food1
- 437      
- 438      replace_food0:
- 439          sw x4, 0(x3)
- 440          j save_next_food
- 441      
- 442      check_replace_food1:
- 443          li16 x3, food1
- 444          lw x6, 0(x3)
- 445          beq x5, x6, replace_food1
- 446          j replace_food2
- 447      
- 448      replace_food1:
- 449          sw x4, 0(x3)
- 450          j save_next_food
- 451      
- 452      replace_food2:
- 453          li16 x3, food2
- 454          sw x4, 0(x3)
+ 413          j draw_head_after_food
+ 414      
+ 415      max_length_food_move:
+ 416          # At max length, still move forward and replace the eaten apple.
+ 417          li16 x3, segments
+ 418          lw x4, 0(x3)
+ 419          li16 x3, 0xF000
+ 420          add x3, x4
+ 421          li x5, 0
+ 422          sb x5, 0(x3)
+ 423      
+ 424          li16 x3, length
+ 425          lw x5, 0(x3)
+ 426          dec x5
+ 427          li16 x3, segments
+ 428      max_food_shift_loop:
+ 429          mv x6, x3
+ 430          addi x6, 2
+ 431          lw a1, 0(x6)
+ 432          sw a1, 0(x3)
+ 433          addi x3, 2
+ 434          dec x5
+ 435          bnz x5, max_food_shift_loop
+ 436      
+ 437          li16 x3, length
+ 438          lw x5, 0(x3)
+ 439          dec x5
+ 440          slli x5, 1
+ 441          li16 x3, segments
+ 442          add x3, x5
+ 443          li16 x4, pending_head
+ 444          lw x4, 0(x4)
+ 445          sw x4, 0(x3)
+ 446      
+ 447          li16 a0, 880
+ 448          li16 a1, 90
+ 449          ecall 0x040
+ 450      
+ 451          li16 x3, score
+ 452          lw x5, 0(x3)
+ 453          addi x5, 5
+ 454          sw x5, 0(x3)
  455      
- 456      save_next_food:
- 457          li16 x3, next_food_offset
- 458          sw x4, 0(x3)
- 459          li16 x3, 0xF000
- 460          add x3, x4
- 461          li x5, 2
- 462          sb x5, 0(x3)
- 463          j game_loop
- 464      
- 465      game_over:
- 466          li16 a0, 180
- 467          li16 a1, 700
- 468          ecall 0x040
- 469      
- 470          li16 a0, game_over_text
- 471          ecall 0x012
- 472          li16 x3, score
- 473          lw a0, 0(x3)
- 474          ecall 0x000
- 475          li a0, 10
- 476          ecall 0x001
- 477          ecall 0x3FF
- 478      
- 479      .data
- 480      length:           .word 4
- 481      direction:        .word 1
- 482      pending_head:     .word 151
- 483      next_food_offset: .word 72
- 484      score:            .word 0
- 485      food0:            .word 170
- 486      food1:            .word 207
- 487      food2:            .word 228
- 488      segments:         .space 64
- 489      game_over_text:   .string "GAME OVER  SCORE: "
+ 456          j draw_head_after_food
+ 457      
+ 458      draw_head:
+ 459          li16 x3, pending_head
+ 460          lw x4, 0(x3)
+ 461          li16 x3, 0xF000
+ 462          add x3, x4
+ 463          li x5, 1
+ 464          sb x5, 0(x3)
+ 465          j game_loop
+ 466      
+ 467      draw_head_after_food:
+ 468          li16 x3, pending_head
+ 469          lw x4, 0(x3)
+ 470          li16 x3, 0xF000
+ 471          add x3, x4
+ 472          li x5, 1
+ 473          sb x5, 0(x3)
+ 474          j food_next
+ 475      
+ 476      food_next:
+ 477          ecall 0x021
+ 478          li16 x3, rng_byte
+ 479          sb a0, 0(x3)
+ 480          lbu x4, 0(x3)
+ 481          j food_try
+ 482      
+ 483      food_wrap:
+ 484          li x4, 0
+ 485      
+ 486      food_try:
+ 487          li16 x3, 0xF000
+ 488          add x3, x4
+ 489          lbu x5, 0(x3)
+ 490          li x6, 0
+ 491          beq x5, x6, food_place
+ 492          j food_advance
+ 493      
+ 494      food_advance:
+ 495          addi x4, 1
+ 496          li16 x5, 300
+ 497          bltu x4, x5, food_advance_try
+ 498          j food_wrap
+ 499      
+ 500      food_advance_try:
+ 501          j food_try
+ 502      
+ 503      food_place:
+ 504          li16 x3, pending_head
+ 505          lw x5, 0(x3)
+ 506      
+ 507          li16 x3, food0
+ 508          lw x6, 0(x3)
+ 509          beq x5, x6, replace_food0
+ 510          j check_replace_food1
+ 511      
+ 512      replace_food0:
+ 513          sw x4, 0(x3)
+ 514          j save_next_food
+ 515      
+ 516      check_replace_food1:
+ 517          li16 x3, food1
+ 518          lw x6, 0(x3)
+ 519          beq x5, x6, replace_food1
+ 520          j replace_food2
+ 521      
+ 522      replace_food1:
+ 523          sw x4, 0(x3)
+ 524          j save_next_food
+ 525      
+ 526      replace_food2:
+ 527          li16 x3, food2
+ 528          sw x4, 0(x3)
+ 529      
+ 530      save_next_food:
+ 531          li16 x3, next_food_offset
+ 532          sw x4, 0(x3)
+ 533          li16 x3, 0xF000
+ 534          add x3, x4
+ 535          li x5, 2
+ 536          sb x5, 0(x3)
+ 537          li16 x3, game_loop
+ 538          jr x3
+ 539      
+ 540      game_over:
+ 541          li16 a0, 180
+ 542          li16 a1, 700
+ 543          ecall 0x040
+ 544      
+ 545          li16 a0, game_over_text
+ 546          ecall 0x012
+ 547          li16 x3, score
+ 548          lw a0, 0(x3)
+ 549          ecall 0x000
+ 550          li a0, 10
+ 551          ecall 0x001
+ 552          ecall 0x3FF
+ 553      
+ 554      .data
+ 555      length:           .word 4
+ 556      direction:        .word 1
+ 557      pending_head:     .word 151
+ 558      next_food_offset: .word 72
+ 559      score:            .word 0
+ 560      food0:            .word 0
+ 561      food1:            .word 0
+ 562      food2:            .word 0
+ 563      rng_byte:         .word 0
+ 564      segments:         .space 160
+ 565      game_over_text:   .string "GAME OVER  SCORE: "
 
 Symbol Table:
 ------------------------------
@@ -505,19 +581,19 @@ S1                   = 0x0004  (global)
 SP                   = 0x0002  (global)
 T0                   = 0x0000  (global)
 T1                   = 0x0005  (global)
-check_down           = 0x0194  (local)
-check_food           = 0x0208  (local)
-check_left           = 0x01AC  (local)
-check_replace_food1  = 0x031C  (local)
-check_right          = 0x01C4  (local)
-check_snake          = 0x020E  (local)
+check_down           = 0x01F4  (local)
+check_food           = 0x0268  (local)
+check_left           = 0x020C  (local)
+check_replace_food1  = 0x03BA  (local)
+check_right          = 0x0224  (local)
+check_snake          = 0x026E  (local)
 clear_map            = 0x00A0  (local)
-delay_loop           = 0x0176  (local)
+delay_loop           = 0x01D6  (local)
 direction            = 0x8002  (local)
-direction_done       = 0x01DA  (local)
-draw_head            = 0x0296  (local)
-draw_head_after_food = 0x02A8  (local)
-eat_food             = 0x0264  (local)
+direction_done       = 0x023A  (local)
+draw_head            = 0x035A  (local)
+draw_head_after_food = 0x036C  (local)
+eat_food             = 0x02C4  (local)
 fill_tile0           = 0x004A  (local)
 fill_tile1           = 0x0058  (local)
 fill_tile2           = 0x0066  (local)
@@ -525,54 +601,64 @@ fill_tile3           = 0x008E  (local)
 food0                = 0x800A  (local)
 food1                = 0x800C  (local)
 food2                = 0x800E  (local)
-food_advance         = 0x02FC  (local)
-food_advance_try     = 0x0306  (local)
-food_check_column    = 0x02DC  (local)
-food_column_ready    = 0x02E6  (local)
-food_column_reduce   = 0x02DE  (local)
-food_next            = 0x02BA  (local)
-food_next_try        = 0x02CA  (local)
-food_place           = 0x0308  (local)
+food_advance         = 0x039A  (local)
+food_advance_try     = 0x03A4  (local)
+food_next            = 0x037E  (local)
+food_place           = 0x03A6  (local)
 food_tile_rows       = 0x0076  (local)
-food_try             = 0x02CE  (local)
-food_try_advance     = 0x02DA  (local)
-food_wrap            = 0x02CC  (local)
-game_loop            = 0x0168  (local)
-game_over            = 0x0342  (local)
-game_over_text       = 0x8050  (local)
-grow_body            = 0x0270  (local)
-input_ready          = 0x017C  (local)
+food_try             = 0x038C  (local)
+food_wrap            = 0x038A  (local)
+game_loop            = 0x01D2  (local)
+game_over            = 0x03E4  (local)
+game_over_text       = 0x80B2  (local)
+grow_body            = 0x02D2  (local)
+init_food0           = 0x0120  (local)
+init_food0_loop      = 0x0142  (local)
+init_food0_place     = 0x0144  (local)
+init_food0_try       = 0x012C  (local)
+init_food1           = 0x0154  (local)
+init_food1_loop      = 0x0176  (local)
+init_food1_place     = 0x0178  (local)
+init_food1_try       = 0x0160  (local)
+init_food2           = 0x0188  (local)
+init_food2_loop      = 0x01AA  (local)
+init_food2_place     = 0x01AC  (local)
+init_food2_try       = 0x0194  (local)
+input_ready          = 0x01DC  (local)
 length               = 0x8000  (local)
+max_food_shift_loop  = 0x031E  (local)
+max_length_food_move = 0x0302  (local)
 next_food_offset     = 0x8006  (local)
-normal_move          = 0x0220  (local)
+normal_move          = 0x0280  (local)
 pending_head         = 0x8004  (local)
-replace_food0        = 0x0318  (local)
-replace_food1        = 0x0326  (local)
-replace_food2        = 0x032A  (local)
-save_next_food       = 0x0330  (local)
+replace_food0        = 0x03B6  (local)
+replace_food1        = 0x03C4  (local)
+replace_food2        = 0x03C8  (local)
+rng_byte             = 0x8010  (local)
+save_next_food       = 0x03CE  (local)
 score                = 0x8008  (local)
-segments             = 0x8010  (local)
-set_down             = 0x019A  (local)
-set_down_apply       = 0x01A6  (local)
-set_left             = 0x01B2  (local)
-set_left_apply       = 0x01BE  (local)
-set_right            = 0x01CA  (local)
-set_right_apply      = 0x01D6  (local)
-set_up               = 0x0182  (local)
-set_up_apply         = 0x018E  (local)
-shift_loop           = 0x023C  (local)
-snake_tile           = 0x0214  (local)
+segments             = 0x8012  (local)
+set_down             = 0x01FA  (local)
+set_down_apply       = 0x0206  (local)
+set_left             = 0x0212  (local)
+set_left_apply       = 0x021E  (local)
+set_right            = 0x022A  (local)
+set_right_apply      = 0x0236  (local)
+set_up               = 0x01E2  (local)
+set_up_apply         = 0x01EE  (local)
+shift_loop           = 0x029C  (local)
+snake_tile           = 0x0274  (local)
 start                = 0x0020  (local)
-start_game           = 0x0166  (local)
-tail_tile            = 0x021E  (local)
-wait_for_start       = 0x0152  (local)
+start_game           = 0x01D0  (local)
+tail_tile            = 0x027E  (local)
+wait_for_start       = 0x01BC  (local)
 wall_sides           = 0x00C6  (local)
 wall_top_bottom      = 0x00B4  (local)
 
 Statistics:
-  Code size:    832 bytes
-  Data size:    99 bytes
+  Code size:    994 bytes
+  Data size:    197 bytes
   BSS size:     0 bytes
-  Total size:   931 bytes
-  Symbols:      77
-  Lines:        489
+  Total size:   1191 bytes
+  Symbols:      87
+  Lines:        565

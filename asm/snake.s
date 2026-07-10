@@ -134,27 +134,7 @@ wall_sides:
     li x4, 0
     sw x4, 0(x3)
 
-    li16 x3, food0
-    li16 x4, 170
-    sw x4, 0(x3)
-
-    li16 x3, food1
-    li16 x4, 207
-    sw x4, 0(x3)
-
-    li16 x3, food2
-    li16 x4, 228
-    sw x4, 0(x3)
-
-    # Initial draw. After this, wait for the first key press.
-    li x4, 2
-    li16 x3, 0xF0AA
-    sb x4, 0(x3)
-    li16 x3, 0xF0CF
-    sb x4, 0(x3)
-    li16 x3, 0xF0E4
-    sb x4, 0(x3)
-
+    # Initial snake draw.
     li x4, 1
     li16 x3, 0xF094
     sb x4, 0(x3)
@@ -162,6 +142,85 @@ wall_sides:
     sb x4, 2(x3)
     sb x4, 3(x3)
 
+init_food0:
+    ecall 0x021
+    li16 x3, rng_byte
+    sb a0, 0(x3)
+    lbu x4, 0(x3)
+    j init_food0_try
+init_food0_try:
+    li16 x3, 0xF000
+    add x3, x4
+    lbu x5, 0(x3)
+    li x6, 0
+    beq x5, x6, init_food0_place
+    addi x4, 1
+    li16 x5, 300
+    bltu x4, x5, init_food0_loop
+    li x4, 0
+init_food0_loop:
+    j init_food0_try
+init_food0_place:
+    li16 x3, food0
+    sw x4, 0(x3)
+    li16 x3, 0xF000
+    add x3, x4
+    li x5, 2
+    sb x5, 0(x3)
+
+init_food1:
+    ecall 0x021
+    li16 x3, rng_byte
+    sb a0, 0(x3)
+    lbu x4, 0(x3)
+    j init_food1_try
+init_food1_try:
+    li16 x3, 0xF000
+    add x3, x4
+    lbu x5, 0(x3)
+    li x6, 0
+    beq x5, x6, init_food1_place
+    addi x4, 1
+    li16 x5, 300
+    bltu x4, x5, init_food1_loop
+    li x4, 0
+init_food1_loop:
+    j init_food1_try
+init_food1_place:
+    li16 x3, food1
+    sw x4, 0(x3)
+    li16 x3, 0xF000
+    add x3, x4
+    li x5, 2
+    sb x5, 0(x3)
+
+init_food2:
+    ecall 0x021
+    li16 x3, rng_byte
+    sb a0, 0(x3)
+    lbu x4, 0(x3)
+    j init_food2_try
+init_food2_try:
+    li16 x3, 0xF000
+    add x3, x4
+    lbu x5, 0(x3)
+    li x6, 0
+    beq x5, x6, init_food2_place
+    addi x4, 1
+    li16 x5, 300
+    bltu x4, x5, init_food2_loop
+    li x4, 0
+init_food2_loop:
+    j init_food2_try
+init_food2_place:
+    li16 x3, food2
+    sw x4, 0(x3)
+    li16 x3, 0xF000
+    add x3, x4
+    li x5, 2
+    sb x5, 0(x3)
+
+    # After this, wait for the first key press.
 wait_for_start:
     ecall 0x030
     li x5, 1
@@ -178,10 +237,6 @@ start_game:
     j input_ready
 
 game_loop:
-    li16 a0, 660
-    li16 a1, 120
-    ecall 0x040
-
     li16 x3, 3000
 delay_loop:
     dec x3
@@ -326,12 +381,12 @@ shift_loop:
     j draw_head
 
 eat_food:
-    # Append a new head and increase length, up to 24 cells.
+    # Append a new head and increase length, up to 80 cells.
     li16 x3, length
     lw x5, 0(x3)
-    li x6, 24
+    li16 x6, 80
     bltu x5, x6, grow_body
-    j normal_move
+    j max_length_food_move
 
 grow_body:
     mv x6, x5
@@ -346,9 +401,56 @@ grow_body:
     li16 x3, length
     sw x5, 0(x3)
 
+    li16 a0, 880
+    li16 a1, 90
+    ecall 0x040
+
     li16 x3, score
     lw x5, 0(x3)
-    inc x5
+    addi x5, 5
+    sw x5, 0(x3)
+
+    j draw_head_after_food
+
+max_length_food_move:
+    # At max length, still move forward and replace the eaten apple.
+    li16 x3, segments
+    lw x4, 0(x3)
+    li16 x3, 0xF000
+    add x3, x4
+    li x5, 0
+    sb x5, 0(x3)
+
+    li16 x3, length
+    lw x5, 0(x3)
+    dec x5
+    li16 x3, segments
+max_food_shift_loop:
+    mv x6, x3
+    addi x6, 2
+    lw a1, 0(x6)
+    sw a1, 0(x3)
+    addi x3, 2
+    dec x5
+    bnz x5, max_food_shift_loop
+
+    li16 x3, length
+    lw x5, 0(x3)
+    dec x5
+    slli x5, 1
+    li16 x3, segments
+    add x3, x5
+    li16 x4, pending_head
+    lw x4, 0(x4)
+    sw x4, 0(x3)
+
+    li16 a0, 880
+    li16 a1, 90
+    ecall 0x040
+
+    li16 x3, score
+    lw x5, 0(x3)
+    addi x5, 5
     sw x5, 0(x3)
 
     j draw_head_after_food
@@ -372,44 +474,16 @@ draw_head_after_food:
     j food_next
 
 food_next:
-    li16 x3, next_food_offset
-    lw x4, 0(x3)
-    addi x4, 37
-
-    li16 x5, 280
-    bltu x4, x5, food_next_try
-    j food_wrap
-
-food_next_try:
+    ecall 0x021
+    li16 x3, rng_byte
+    sb a0, 0(x3)
+    lbu x4, 0(x3)
     j food_try
 
 food_wrap:
-    li x4, 42
+    li x4, 0
 
 food_try:
-    li x5, 20
-    bltu x4, x5, food_try_advance
-
-    li16 x5, 280
-    bltu x4, x5, food_check_column
-    j food_wrap
-
-food_try_advance:
-    j food_advance
-
-food_check_column:
-    mv x5, x4
-food_column_reduce:
-    li x6, 20
-    bltu x5, x6, food_column_ready
-    addi x5, -20
-    j food_column_reduce
-food_column_ready:
-    li x6, 0
-    beq x5, x6, food_advance
-    li x6, 19
-    beq x5, x6, food_advance
-
     li16 x3, 0xF000
     add x3, x4
     lbu x5, 0(x3)
@@ -418,8 +492,8 @@ food_column_ready:
     j food_advance
 
 food_advance:
-    addi x4, 37
-    li16 x5, 280
+    addi x4, 1
+    li16 x5, 300
     bltu x4, x5, food_advance_try
     j food_wrap
 
@@ -460,7 +534,8 @@ save_next_food:
     add x3, x4
     li x5, 2
     sb x5, 0(x3)
-    j game_loop
+    li16 x3, game_loop
+    jr x3
 
 game_over:
     li16 a0, 180
@@ -482,8 +557,9 @@ direction:        .word 1
 pending_head:     .word 151
 next_food_offset: .word 72
 score:            .word 0
-food0:            .word 170
-food1:            .word 207
-food2:            .word 228
-segments:         .space 64
+food0:            .word 0
+food1:            .word 0
+food2:            .word 0
+rng_byte:         .word 0
+segments:         .space 160
 game_over_text:   .string "GAME OVER  SCORE: "

@@ -20,17 +20,39 @@ set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "" FORCE)
 
 FetchContent_MakeAvailable(raylib)
 
+add_library(zx16_core
+    src/core/memory.cpp
+    src/core/register_file.cpp
+    src/core/cpu.cpp
+    src/core/ecall.cpp
+    src/core/program_loader.cpp
+    src/core/instruction_decoder.cpp
+    src/core/graphics_memory.cpp
+    src/core/snake_runtime.cpp
+)
+
+target_include_directories(zx16_core PUBLIC
+    src/core
+)
+
+add_library(zx16_desktop
+    src/desktop/gui.cpp
+)
+
+target_include_directories(zx16_desktop PUBLIC
+    src/desktop
+)
+
+target_link_libraries(zx16_desktop PUBLIC
+    zx16_core
+    raylib
+)
+
 add_executable(zx16sim
-    src/main.cpp
-    src/memory.cpp
-    src/register_file.cpp
-    src/cpu.cpp
-    src/program_loader.cpp
-    src/instruction_decoder.cpp
-    src/gui.cpp
-    src/graphics_memory.cpp
-    src/snake_runtime.cpp
+    src/app/main.cpp
+)
 
- "src/breakpoint_manager.h")
-
-target_link_libraries(zx16sim PRIVATE raylib)
+target_link_libraries(zx16sim PRIVATE
+    zx16_core
+    zx16_desktop
+)
