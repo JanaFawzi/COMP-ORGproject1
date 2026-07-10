@@ -1237,8 +1237,8 @@ function restartSnakeFromButton(): void {
     running = false;
     runToCursorActive = false;
     selectedSpeedName = "";
-    speedButtons.classList.add("hidden");
     loadSnakeProgram();
+    showSpeedButtons();
 }
 
 runButton.addEventListener("click", (): void => {
