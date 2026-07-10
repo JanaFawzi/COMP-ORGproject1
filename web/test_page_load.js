@@ -163,6 +163,7 @@ makeElement("ramText");
 makeElement("cursorText");
 makeElement("memoryEditText");
 makeElement("breakpointText");
+makeElement("disassemblyText");
 makeElement("consoleText");
 makeElement("runButton");
 makeElement("speedButtons");
@@ -180,7 +181,8 @@ makeElement("scoreText");
 makeElement("statusText");
 
 global.zx16Programs = {
-    snake: [0xAA, 0xBB, 0xCC, 0xDD]
+    snake: [0xAA, 0xBB, 0xCC, 0xDD],
+    snakeListing: "start:\n    li16 sp, 0xEFFE\n    ecall 0x041"
 };
 
 global.setInterval = function () {};
@@ -527,6 +529,10 @@ setTimeout(function () {
 
     if (!elements.scoreText.textContent.includes("Score:")) {
         throw new Error("Score was not displayed on the main screen.");
+    }
+
+    if (!elements.disassemblyText.textContent.includes("li16 sp")) {
+        throw new Error("Disassembly listing was not shown.");
     }
 
     pendingStopAudio = true;

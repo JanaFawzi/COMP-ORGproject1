@@ -164,6 +164,11 @@ pre {
     white-space: normal;
 }
 
+.disassembly-viewer {
+    max-height: 260px;
+    white-space: pre;
+}
+
 .register-row,
 .memory-row {
     display: flex;
