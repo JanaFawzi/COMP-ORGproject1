@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ZX16 Web Simulator</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <main class="simulator">
+        <section class="screen-area">
+            <div class="top-bar">
+                <h1>ZX16 Simulator</h1>
+                <button id="internalsButton" type="button">View Internals</button>
+            </div>
+
+            <canvas id="graphicsCanvas" width="320" height="240"></canvas>
+
+            <div class="controls">
+                <button id="runButton" type="button">Start</button>
+                <button id="pauseButton" type="button">Pause</button>
+                <button id="resetButton" type="button">Restart</button>
+                <span id="scoreText">Score: 0</span>
+                <span id="statusText">Loading</span>
+            </div>
+        </section>
+
+        <aside id="internalsPanel" class="internals hidden">
+            <h2>Simulator Internals</h2>
+
+            <section>
+                <h3>Controls</h3>
+                <div class="debug-controls">
+                    <button id="internalRunButton" type="button">Run</button>
+                    <button id="stepButton" type="button">Step</button>
+                    <button id="runCursorButton" type="button">Curs</button>
+                    <button id="internalResetButton" type="button">Reset</button>
+                    <button id="clearBreakpointsButton" type="button">Clear BP</button>
+                </div>
+            </section>
+
+            <section>
+                <h3>Registers</h3>
+                <div id="registersText" class="debug-box register-list">Loading registers...</div>
+                <div id="registerEditText" class="edit-line">no register selected</div>
+            </section>
+
+            <section>
+                <h3>RAM Debug <span id="breakpointText">BP:0</span></h3>
+                <div id="ramText" class="debug-box memory-viewer">Loading memory...</div>
+                <div id="cursorText" class="edit-line">Run cursor: ----</div>
+                <div id="memoryEditText" class="edit-line">no memory byte selected</div>
+            </section>
+
+            <section>
+                <h3>Console</h3>
+                <pre id="consoleText" class="debug-box">Ready.</pre>
+            </section>
+        </aside>
+    </main>
+
+    <script src="build/zx16_backend.js?v=step89i"></script>
+    <script src="build/programs.js?v=step89i"></script>
+    <script src="build/main.js?v=step89i"></script>
+</body>
+</html>
