@@ -563,6 +563,12 @@ setTimeout(function () {
         throw new Error("Key release did not clear the simulator keyboard interface after pausing.");
     }
 
+    elements.resetButton.click();
+
+    if (elements.speedButtons.classList.contains("hidden")) {
+        throw new Error("Restart did not show the speed buttons.");
+    }
+
     elements.internalRunButton.click();
     elements.internalResetButton.click();
     elements.stepButton.click();
