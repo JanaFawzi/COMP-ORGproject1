@@ -166,7 +166,36 @@ pre {
 
 .disassembly-viewer {
     max-height: 260px;
-    white-space: pre;
+    white-space: normal;
+}
+
+.disassembly-row {
+    display: flex;
+    align-items: center;
+    min-height: 21px;
+    font-family: Consolas, "Courier New", monospace;
+}
+
+.disassembly-row.pc {
+    background: #064006;
+    color: #ffff66;
+}
+
+.disassembly-address {
+    display: inline-block;
+    width: 72px;
+    color: #57e657;
+}
+
+.disassembly-word {
+    display: inline-block;
+    width: 48px;
+    color: #98ff98;
+}
+
+.disassembly-instruction {
+    display: inline-block;
+    min-width: 150px;
 }
 
 .register-row,

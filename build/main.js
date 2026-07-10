@@ -977,13 +977,185 @@ function renderConsole(keyCode) {
     consoleText.textContent = text;
 }
 
-function renderDisassembly() {
-    if (typeof zx16Programs === "undefined" || !zx16Programs.snakeListing) {
-        disassemblyText.textContent = "Snake disassembly was not found.";
-        return;
+function signExtend(value, bits) {
+    const signBit = 1 << (bits - 1);
+    const mask = (1 << bits) - 1;
+    let result = value & mask;
+
+    if ((result & signBit) !== 0) {
+        result = result | (~mask);
     }
 
-    disassemblyText.textContent = zx16Programs.snakeListing;
+    return result;
+}
+
+function getSyscallDisplayName(service) {
+    if (service === 0x000) return "print_int";
+    if (service === 0x001) return "print_char";
+    if (service === 0x010) return "read_string";
+    if (service === 0x011) return "read_int";
+    if (service === 0x012) return "print_string";
+    if (service === 0x020) return "seed_rng";
+    if (service === 0x021) return "random";
+    if (service === 0x030) return "keyboard";
+    if (service === 0x040) return "play_tone";
+    if (service === 0x041) return "set_volume";
+    if (service === 0x042) return "stop_audio";
+    if (service === 0x050) return "regs_dump";
+    if (service === 0x051) return "mem_dump";
+    if (service === 0x3FF) return "halt";
+
+    return "unknown_sys";
+}
+
+function disassembleInstruction(word) {
+    const opcode = word & 0x0007;
+    const func3 = (word >> 3) & 0x0007;
+    const funct4 = (word >> 12) & 0x000F;
+    const rd = (word >> 6) & 0x0007;
+    const rs1 = (word >> 6) & 0x0007;
+    const rs2 = (word >> 9) & 0x0007;
+
+    if (opcode === 0) {
+        if (funct4 === 0x0) return "R add x" + rd + ",x" + rs2;
+        if (funct4 === 0x1) return "R sub x" + rd + ",x" + rs2;
+        if (funct4 === 0x2) return "R slt x" + rd + ",x" + rs2;
+        if (funct4 === 0x3) return "R sltu x" + rd + ",x" + rs2;
+        if (funct4 === 0x4) return "R sll x" + rd + ",x" + rs2;
+        if (funct4 === 0x5) return "R srl x" + rd + ",x" + rs2;
+        if (funct4 === 0x6) return "R sra x" + rd + ",x" + rs2;
+        if (funct4 === 0x7) return "R or x" + rd + ",x" + rs2;
+        if (funct4 === 0x8) return "R and x" + rd + ",x" + rs2;
+        if (funct4 === 0x9) return "R xor x" + rd + ",x" + rs2;
+        if (funct4 === 0xA) return "R mv x" + rd + ",x" + rs2;
+        if (funct4 === 0xB) return "R jr x" + rd;
+        if (funct4 === 0xC) return "R jalr x" + rd + ",x" + rs2;
+
+        return "R unknown";
+    }
+
+    if (opcode === 1) {
+        const immediate = signExtend((word >> 9) & 0x007F, 7);
+
+        if (func3 === 0x0) return "I addi x" + rd + "," + immediate;
+        if (func3 === 0x1) return "I slti x" + rd + "," + immediate;
+        if (func3 === 0x2) return "I sltui x" + rd + "," + immediate;
+
+        if (func3 === 0x3) {
+            const imm7 = (word >> 9) & 0x7F;
+            const shiftType = (imm7 >> 4) & 0x7;
+            const amount = imm7 & 0xF;
+
+            if (shiftType === 0x1) return "I slli x" + rd + "," + amount;
+            if (shiftType === 0x2) return "I srli x" + rd + "," + amount;
+            if (shiftType === 0x4) return "I srai x" + rd + "," + amount;
+        }
+
+        if (func3 === 0x4) return "I ori x" + rd;
+        if (func3 === 0x5) return "I andi x" + rd + "," + immediate;
+        if (func3 === 0x6) return "I xori x" + rd + "," + immediate;
+        if (func3 === 0x7) return "I li x" + rd + "," + immediate;
+
+        return "I unknown";
+    }
+
+    if (opcode === 2) {
+        const immediate = signExtend(((word >> 12) & 0x000F) << 1, 5);
+
+        if (func3 === 0x0) return "B beq x" + rs1 + ",x" + rs2 + "," + immediate;
+        if (func3 === 0x1) return "B bne x" + rs1 + ",x" + rs2 + "," + immediate;
+        if (func3 === 0x2) return "B bz x" + rs1 + "," + immediate;
+        if (func3 === 0x3) return "B bnz x" + rs1 + "," + immediate;
+        if (func3 === 0x4) return "B blt x" + rs1 + ",x" + rs2 + "," + immediate;
+        if (func3 === 0x5) return "B bge x" + rs1 + ",x" + rs2 + "," + immediate;
+        if (func3 === 0x6) return "B bltu x" + rs1 + ",x" + rs2 + "," + immediate;
+        if (func3 === 0x7) return "B bgeu x" + rs1 + ",x" + rs2 + "," + immediate;
+
+        return "B unknown";
+    }
+
+    if (opcode === 3) {
+        const immediate = signExtend((word >> 12) & 0x000F, 4);
+
+        if (func3 === 0x0) return "S sb x" + rs2 + "," + immediate + "(x" + rs1 + ")";
+        if (func3 === 0x1) return "S sw x" + rs2 + "," + immediate + "(x" + rs1 + ")";
+
+        return "S unknown";
+    }
+
+    if (opcode === 4) {
+        const immediate = signExtend((word >> 12) & 0x000F, 4);
+
+        if (func3 === 0x0) return "L lb x" + rd + "," + immediate + "(x" + ((word >> 9) & 0x0007) + ")";
+        if (func3 === 0x1) return "L lw x" + rd + "," + immediate + "(x" + ((word >> 9) & 0x0007) + ")";
+        if (func3 === 0x4) return "L lbu x" + rd + "," + immediate + "(x" + ((word >> 9) & 0x0007) + ")";
+
+        return "L unknown";
+    }
+
+    if (opcode === 5) {
+        let immediate = 0;
+        immediate = immediate | (((word >> 3) & 0x0007) << 1);
+        immediate = immediate | (((word >> 9) & 0x003F) << 4);
+        immediate = signExtend(immediate, 10);
+
+        if (((word >> 15) & 0x0001) === 1) return "J jal x" + rd + "," + immediate;
+
+        return "J j " + immediate;
+    }
+
+    if (opcode === 6) {
+        let immediate = 0;
+        immediate = immediate | ((word >> 3) & 0x0007);
+        immediate = immediate | (((word >> 9) & 0x003F) << 3);
+
+        if (((word >> 15) & 0x0001) === 1) return "U auipc x" + rd + "," + immediate;
+
+        return "U lui x" + rd + "," + immediate;
+    }
+
+    const service = (word >> 6) & 0x03FF;
+
+    return "SYS " + getSyscallDisplayName(service);
+}
+
+function getDisassemblyBaseAddress() {
+    const alignedPc = getPc() & 0xFFFE;
+
+    if (alignedPc < 16) {
+        return 0;
+    }
+
+    if (alignedPc > 0xFFDC) {
+        return 0xFFDC;
+    }
+
+    return (alignedPc - 16) & 0xFFFF;
+}
+
+function renderDisassembly() {
+    const baseAddress = getDisassemblyBaseAddress();
+    const pc = getPc() & 0xFFFE;
+    let html = "";
+
+    for (let row = 0; row < 11; row++) {
+        const address = (baseAddress + row * 2) & 0xFFFF;
+        const word = read16(address);
+        let rowClass = "disassembly-row";
+
+        if (address === pc) {
+            rowClass += " pc";
+        }
+
+        html +=
+            "<div class=\"" + rowClass + "\">" +
+            "<span class=\"disassembly-address\">0x" + toHex16(address) + "</span>" +
+            "<span class=\"disassembly-word\">" + toHex16(word) + "</span>" +
+            "<span class=\"disassembly-instruction\">" + disassembleInstruction(word) + "</span>" +
+            "</div>";
+    }
+
+    disassemblyText.innerHTML = html;
 }
 
 function getSnakeScore() {
