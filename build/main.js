@@ -18,6 +18,7 @@ const wormButton = document.getElementById("wormButton");
 const pythonButton = document.getElementById("pythonButton");
 const pauseButton = document.getElementById("pauseButton");
 const stepButton = document.getElementById("stepButton");
+const stepOverButton = document.getElementById("stepOverButton");
 const runCursorButton = document.getElementById("runCursorButton");
 const resetButton = document.getElementById("resetButton");
 const clearBreakpointsButton = document.getElementById("clearBreakpointsButton");
@@ -66,6 +67,7 @@ let setSp = null;
 let getRegister = null;
 let setRegister = null;
 let stepCpu = null;
+let stepOverCpu = null;
 let stepWithBreakpoints = null;
 let isHalted = null;
 let getOutput = null;
@@ -1174,6 +1176,7 @@ function refreshControls() {
     internalRunButton.disabled = running || halted;
     pauseButton.disabled = !running;
     stepButton.disabled = running || halted;
+    stepOverButton.disabled = running || halted;
     runCursorButton.disabled = running || halted || cursorAddress < 0;
     slugButton.disabled = running || halted;
     wormButton.disabled = running || halted;
@@ -1324,6 +1327,20 @@ function stepOnce() {
     drawPage();
 }
 
+function stepOverOnce() {
+    if (backend === null || stepOverCpu === null || isHalted === null) {
+        return;
+    }
+
+    if (running || isHalted()) {
+        return;
+    }
+
+    stepOverCpu();
+    processAudioRequests();
+    drawPage();
+}
+
 function runToCursor() {
     if (backend === null || isHalted === null) {
         return;
@@ -1355,6 +1372,7 @@ async function start() {
     getRegister = backend.cwrap("zx16_get_register", "number", ["number"]);
     setRegister = backend.cwrap("zx16_set_register", null, ["number", "number"]);
     stepCpu = backend.cwrap("zx16_step", "number", []);
+    stepOverCpu = backend.cwrap("zx16_step_over", "number", []);
     stepWithBreakpoints = backend.cwrap("zx16_step_with_breakpoints", "number", []);
     isHalted = backend.cwrap("zx16_is_halted", "number", []);
     getOutput = backend.cwrap("zx16_get_output", "string", []);
@@ -1450,6 +1468,12 @@ stepButton.addEventListener("click", () => {
     prepareAudioFromUserEvent();
     frameNumber++;
     stepOnce();
+});
+
+stepOverButton.addEventListener("click", () => {
+    prepareAudioFromUserEvent();
+    frameNumber++;
+    stepOverOnce();
 });
 
 runCursorButton.addEventListener("click", () => {

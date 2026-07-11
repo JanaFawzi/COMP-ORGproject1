@@ -172,6 +172,7 @@ makeElement("wormButton");
 makeElement("pythonButton");
 makeElement("pauseButton");
 makeElement("stepButton");
+makeElement("stepOverButton");
 makeElement("runCursorButton");
 makeElement("resetButton");
 makeElement("clearBreakpointsButton");
@@ -276,6 +277,13 @@ global.createZx16Backend = async function () {
                 return function () {
                     pc = (pc + 2) & 0xFFFF;
                     return 0;
+                };
+            }
+
+            if (name === "zx16_step_over") {
+                return function () {
+                    pc = (pc + 4) & 0xFFFF;
+                    return 1;
                 };
             }
 
@@ -578,6 +586,14 @@ setTimeout(function () {
     elements.internalRunButton.click();
     elements.internalResetButton.click();
     elements.stepButton.click();
+    const pcBeforeStepOver = pc;
+
+    elements.stepOverButton.click();
+
+    if (pc !== ((pcBeforeStepOver + 4) & 0xFFFF)) {
+        throw new Error("Step over button did not call the backend step-over function.");
+    }
+
     elements.runCursorButton.click();
     elements.clearBreakpointsButton.click();
 

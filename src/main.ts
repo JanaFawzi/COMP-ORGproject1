@@ -20,6 +20,7 @@ const wormButton = document.getElementById("wormButton") as HTMLButtonElement;
 const pythonButton = document.getElementById("pythonButton") as HTMLButtonElement;
 const pauseButton = document.getElementById("pauseButton") as HTMLButtonElement;
 const stepButton = document.getElementById("stepButton") as HTMLButtonElement;
+const stepOverButton = document.getElementById("stepOverButton") as HTMLButtonElement;
 const runCursorButton = document.getElementById("runCursorButton") as HTMLButtonElement;
 const resetButton = document.getElementById("resetButton") as HTMLButtonElement;
 const clearBreakpointsButton = document.getElementById("clearBreakpointsButton") as HTMLButtonElement;
@@ -68,6 +69,7 @@ let setSp: any = null;
 let getRegister: any = null;
 let setRegister: any = null;
 let stepCpu: any = null;
+let stepOverCpu: any = null;
 let stepWithBreakpoints: any = null;
 let isHalted: any = null;
 let getOutput: any = null;
@@ -1176,6 +1178,7 @@ function refreshControls(): void {
     internalRunButton.disabled = running || halted;
     pauseButton.disabled = !running;
     stepButton.disabled = running || halted;
+    stepOverButton.disabled = running || halted;
     runCursorButton.disabled = running || halted || cursorAddress < 0;
     slugButton.disabled = running || halted;
     wormButton.disabled = running || halted;
@@ -1326,6 +1329,20 @@ function stepOnce(): void {
     drawPage();
 }
 
+function stepOverOnce(): void {
+    if (backend === null || stepOverCpu === null || isHalted === null) {
+        return;
+    }
+
+    if (running || isHalted()) {
+        return;
+    }
+
+    stepOverCpu();
+    processAudioRequests();
+    drawPage();
+}
+
 function runToCursor(): void {
     if (backend === null || isHalted === null) {
         return;
@@ -1357,6 +1374,7 @@ async function start(): Promise<void> {
     getRegister = backend.cwrap("zx16_get_register", "number", ["number"]);
     setRegister = backend.cwrap("zx16_set_register", null, ["number", "number"]);
     stepCpu = backend.cwrap("zx16_step", "number", []);
+    stepOverCpu = backend.cwrap("zx16_step_over", "number", []);
     stepWithBreakpoints = backend.cwrap("zx16_step_with_breakpoints", "number", []);
     isHalted = backend.cwrap("zx16_is_halted", "number", []);
     getOutput = backend.cwrap("zx16_get_output", "string", []);
@@ -1452,6 +1470,12 @@ stepButton.addEventListener("click", (): void => {
     prepareAudioFromUserEvent();
     frameNumber++;
     stepOnce();
+});
+
+stepOverButton.addEventListener("click", (): void => {
+    prepareAudioFromUserEvent();
+    frameNumber++;
+    stepOverOnce();
 });
 
 runCursorButton.addEventListener("click", (): void => {
