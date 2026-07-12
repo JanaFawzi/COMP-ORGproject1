@@ -381,6 +381,10 @@ void CPU::resetRng() {
 }
 
 void CPU::seedRng(unsigned short seed) {
+    if (seed == 0) {
+        seed = DEFAULT_RNG_SEED;
+    }
+
     rngState = seed;
 }
 
@@ -428,7 +432,8 @@ void CPU::clearKeyboardKey() {
 }
 
 bool CPU::isValidTone(unsigned short frequency, unsigned short durationMs) {
-    if (frequency < MIN_TONE_FREQUENCY) {
+    // Frequency zero represents a timed rest in audio programs.
+    if (frequency != 0 && frequency < MIN_TONE_FREQUENCY) {
         return false;
     }
 

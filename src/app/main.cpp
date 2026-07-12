@@ -1427,7 +1427,7 @@ void testRngStateReset() {
     assert(cpu.getRngState() == 0x1234);
 
     cpu.seedRng(0x0000);
-    assert(cpu.getRngState() == 0x0000);
+    assert(cpu.getRngState() == CPU::DEFAULT_RNG_SEED);
 
     cpu.seedRng(0xFFFF);
     assert(cpu.getRngState() == 0xFFFF);
@@ -1447,7 +1447,7 @@ void testRngStateReset() {
 void testEcallSeedRngExecution() {
     CPU cpu;
 
-    unsigned short word = makeSys(0x020);
+    unsigned short word = makeSys(0x031);
 
     assert(cpu.getRngState() == CPU::DEFAULT_RNG_SEED);
 
@@ -1473,7 +1473,7 @@ void testEcallSeedRngExecution() {
     cpu.getMemory().write16(0x4004, word);
     cpu.step();
 
-    assert(cpu.getRngState() == 0x0000);
+    assert(cpu.getRngState() == CPU::DEFAULT_RNG_SEED);
     assert(cpu.getPC() == 0x4006);
 
     printf("[PASS] ECALL seed_rng test passed\n");
@@ -1482,7 +1482,7 @@ void testEcallSeedRngExecution() {
 void testEcallRandomXorshiftExecution() {
     CPU cpu;
 
-    unsigned short randomWord = makeSys(0x021);
+    unsigned short randomWord = makeSys(0x032);
 
     cpu.seedRng(0xACE1);
 
@@ -1534,8 +1534,8 @@ void testEcallRandomXorshiftExecution() {
     cpu.getMemory().write16(0x5006, randomWord);
     cpu.step();
 
-    assert(cpu.getRegisters().getRegister(6) == 0x0000);
-    assert(cpu.getRngState() == 0x0000);
+    assert(cpu.getRegisters().getRegister(6) == 0xD30F);
+    assert(cpu.getRngState() == 0xD30F);
 
     printf("[PASS] ECALL random xorshift test passed\n");
 }
@@ -1553,6 +1553,7 @@ void testKeyboardEcallDetectKeyPress() {
     cpu.step();
 
     assert(cpu.getRegisters().getRegister(6) == CPU::ZX16_KEY_NONE);
+    assert(cpu.getRegisters().getRegister(7) == 0);
     assert(cpu.getPC() == 0x6002);
     assert(cpu.getLastHandler() == ZX16::SYS_TYPE);
 
@@ -1564,6 +1565,7 @@ void testKeyboardEcallDetectKeyPress() {
     cpu.step();
 
     assert(cpu.getRegisters().getRegister(6) == CPU::ZX16_KEY_UP);
+    assert(cpu.getRegisters().getRegister(7) == 1);
     assert(cpu.getPC() == 0x6004);
 
     assert(cpu.setKeyboardKey(CPU::ZX16_KEY_RIGHT) == true);
@@ -1574,6 +1576,7 @@ void testKeyboardEcallDetectKeyPress() {
     cpu.step();
 
     assert(cpu.getRegisters().getRegister(6) == CPU::ZX16_KEY_RIGHT);
+    assert(cpu.getRegisters().getRegister(7) == 1);
     assert(cpu.getPC() == 0x6006);
 
     cpu.clearKeyboardKey();
@@ -1584,6 +1587,7 @@ void testKeyboardEcallDetectKeyPress() {
     cpu.step();
 
     assert(cpu.getRegisters().getRegister(6) == CPU::ZX16_KEY_NONE);
+    assert(cpu.getRegisters().getRegister(7) == 0);
     assert(cpu.getPC() == 0x6008);
 
     assert(cpu.setKeyboardKey(99) == false);
@@ -1616,13 +1620,13 @@ void testRaylibKeyboardMappingDirections() {
 void testEcallPlayToneExecution() {
     CPU cpu;
 
-    unsigned short toneWord = makeSys(0x040);
+    unsigned short toneWord = makeSys(0x020);
 
     assert(CPU::isValidTone(440, 100) == true);
     assert(CPU::isValidTone(CPU::MIN_TONE_FREQUENCY, 1) == true);
     assert(CPU::isValidTone(CPU::MAX_TONE_FREQUENCY, CPU::MAX_TONE_DURATION_MS) == true);
 
-    assert(CPU::isValidTone(0, 100) == false);
+    assert(CPU::isValidTone(0, 100) == true);
     assert(CPU::isValidTone(19, 100) == false);
     assert(CPU::isValidTone(20001, 100) == false);
     assert(CPU::isValidTone(440, 0) == false);
@@ -1671,9 +1675,13 @@ void testEcallPlayToneExecution() {
     cpu.getMemory().write16(0x7004, toneWord);
     cpu.step();
 
-    assert(cpu.hasPendingTone() == false);
-    assert(cpu.getToneRequestId() == 2);
+    assert(cpu.hasPendingTone() == true);
+    assert(cpu.getToneFrequency() == 0);
+    assert(cpu.getToneDurationMs() == 100);
+    assert(cpu.getToneRequestId() == 3);
     assert(cpu.getPC() == 0x7006);
+
+    cpu.clearToneRequest();
 
     cpu.setPC(0x7006);
     cpu.getRegisters().setRegister(6, 440);
@@ -1682,12 +1690,12 @@ void testEcallPlayToneExecution() {
     cpu.step();
 
     assert(cpu.hasPendingTone() == false);
-    assert(cpu.getToneRequestId() == 2);
+    assert(cpu.getToneRequestId() == 3);
     assert(cpu.getPC() == 0x7008);
 
     cpu.requestTone(1000, 50);
     assert(cpu.hasPendingTone() == true);
-    assert(cpu.getToneRequestId() == 3);
+    assert(cpu.getToneRequestId() == 4);
 
     cpu.reset();
 
@@ -1702,12 +1710,13 @@ void testEcallPlayToneExecution() {
 void testEcallSetVolumeExecution() {
     CPU cpu;
 
-    unsigned short volumeWord = makeSys(0x041);
+    unsigned short volumeWord = makeSys(0x021);
 
     assert(CPU::isValidVolumePercent(0) == true);
     assert(CPU::isValidVolumePercent(50) == true);
     assert(CPU::isValidVolumePercent(100) == true);
-    assert(CPU::isValidVolumePercent(101) == false);
+    assert(CPU::isValidVolumePercent(255) == true);
+    assert(CPU::isValidVolumePercent(256) == false);
     assert(CPU::isValidVolumePercent(0xFFFF) == false);
 
     assert(cpu.getVolumePercent() == CPU::DEFAULT_VOLUME_PERCENT);
@@ -1721,7 +1730,7 @@ void testEcallSetVolumeExecution() {
     assert(cpu.setVolumePercent(100) == true);
     assert(cpu.getVolumePercent() == 100);
 
-    assert(cpu.setVolumePercent(101) == false);
+    assert(cpu.setVolumePercent(256) == false);
     assert(cpu.getVolumePercent() == 100);
 
     cpu.setPC(0x7200);
@@ -1754,7 +1763,7 @@ void testEcallSetVolumeExecution() {
     cpu.getMemory().write16(0x7206, volumeWord);
     cpu.step();
 
-    assert(cpu.getVolumePercent() == 100);
+    assert(cpu.getVolumePercent() == 150);
     assert(cpu.getPC() == 0x7208);
 
     cpu.setVolumePercent(30);
@@ -1775,7 +1784,7 @@ void testEcallSetVolumeExecution() {
 void testEcallStopAudioExecution() {
     CPU cpu;
 
-    unsigned short stopWord = makeSys(0x042);
+    unsigned short stopWord = makeSys(0x022);
 
     assert(cpu.hasPendingStopAudio() == false);
     assert(cpu.getStopAudioRequestId() == 0);
@@ -1830,7 +1839,7 @@ void testEcallStopAudioExecution() {
 void testEcallRegsDumpExecution() {
     CPU cpu;
 
-    unsigned short dumpWord = makeSys(0x050);
+    unsigned short dumpWord = makeSys(0x040);
 
     cpu.clearOutput();
 
@@ -1895,7 +1904,7 @@ void testEcallRegsDumpExecution() {
 void testEcallMemDumpExecution() {
     CPU cpu;
 
-    unsigned short dumpWord = makeSys(0x051);
+    unsigned short dumpWord = makeSys(0x041);
 
     assert(CPU::isValidMemoryDumpLength(0) == true);
     assert(CPU::isValidMemoryDumpLength(1) == true);
@@ -2262,7 +2271,7 @@ void testInstructionFields() {
 void testStepOverSkipsFunctionBody() {
     CPU cpu;
 
-    unsigned short randomWord = makeSys(0x021);
+    unsigned short randomWord = makeSys(0x032);
 
     // funct4=0xC (JALR), rs2=3 (jump target reg), rd=1 (return-addr reg), func3=0, opcode=0
     unsigned short jalrWord = (unsigned short)((0xC << 12) | (3 << 9) | (1 << 6));
@@ -3048,7 +3057,7 @@ bool updateAudioDemo(CPU& cpu) {
 void loadGuiDemoProgram(CPU& cpu) {
     SnakeRuntime::initialize(cpu);
 
-    cpu.getMemory().write16(0x0020, makeSys(0x050));
+    cpu.getMemory().write16(0x0020, makeSys(0x040));
     cpu.getMemory().write16(0x0022, makeI(1, 3, 0));
     cpu.getMemory().write16(0x0024, makeI(2, 4, 0));
     cpu.getMemory().write16(0x0026, makeSys(0x3FF));
@@ -3143,14 +3152,14 @@ void testAllEcallServicesTogether() {
     cpu.getMemory().write16(address + 4, makeSys(0x010));
     cpu.getMemory().write16(address + 6, makeSys(0x011));
     cpu.getMemory().write16(address + 8, makeSys(0x012));
-    cpu.getMemory().write16(address + 10, makeSys(0x020));
-    cpu.getMemory().write16(address + 12, makeSys(0x021));
+    cpu.getMemory().write16(address + 10, makeSys(0x031));
+    cpu.getMemory().write16(address + 12, makeSys(0x032));
     cpu.getMemory().write16(address + 14, makeSys(0x030));
-    cpu.getMemory().write16(address + 16, makeSys(0x040));
-    cpu.getMemory().write16(address + 18, makeSys(0x041));
-    cpu.getMemory().write16(address + 20, makeSys(0x042));
-    cpu.getMemory().write16(address + 22, makeSys(0x050));
-    cpu.getMemory().write16(address + 24, makeSys(0x051));
+    cpu.getMemory().write16(address + 16, makeSys(0x020));
+    cpu.getMemory().write16(address + 18, makeSys(0x021));
+    cpu.getMemory().write16(address + 20, makeSys(0x022));
+    cpu.getMemory().write16(address + 22, makeSys(0x040));
+    cpu.getMemory().write16(address + 24, makeSys(0x041));
     cpu.getMemory().write16(address + 26, makeSys(0x3FF));
 
     cpu.getRegisters().setRegister(6, (unsigned short)-7);
@@ -3196,7 +3205,7 @@ void testAllEcallServicesTogether() {
     cpu.setKeyboardKey(CPU::ZX16_KEY_RIGHT);
     cpu.step();
     assert(cpu.getRegisters().getRegister(6) == CPU::ZX16_KEY_RIGHT);
-    assert(cpu.getRegisters().getRegister(7) == 16);
+    assert(cpu.getRegisters().getRegister(7) == 1);
 
     cpu.getRegisters().setRegister(6, 440);
     cpu.getRegisters().setRegister(7, 200);
@@ -3937,7 +3946,7 @@ void testFinalBinPrograms() {
 void testBreakpointStopsExecution() {
     CPU cpu;
 
-    unsigned short randomWord = makeSys(0x021);
+    unsigned short randomWord = makeSys(0x032);
 
     assert(CPU::isValidBreakpointAddress(0x7000) == true);
     assert(CPU::isValidBreakpointAddress(0x7002) == true);
@@ -4025,7 +4034,7 @@ void testBreakpointStopsExecution() {
 void testCurrentPcHighlightMovesCorrectly() {
     CPU cpu;
 
-    unsigned short randomWord = makeSys(0x021);
+    unsigned short randomWord = makeSys(0x032);
 
     assert(Gui::getMemoryViewerBaseAddress(0x0020) == 0x0020);
     assert(Gui::getMemoryViewerBaseAddress(0x0022) == 0x0020);
@@ -4092,8 +4101,8 @@ void testCurrentInstructionDisplayed() {
     char text[128];
     char expected[128];
 
-    unsigned short randomWord = makeSys(0x021);
-    unsigned short regsDumpWord = makeSys(0x050);
+    unsigned short randomWord = makeSys(0x032);
+    unsigned short regsDumpWord = makeSys(0x040);
     unsigned short haltWord = makeSys(0x3FF);
 
     char disassembled[80];

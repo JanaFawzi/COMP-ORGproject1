@@ -206,43 +206,44 @@ void CPU::handleSysType(DecodedInstruction instruction) {
     }
 
     if (instruction.service == 0x020) {
-        unsigned short seed = registers.getRegister(6);
-
-        seedRng(seed);
-    }
-
-    if (instruction.service == 0x021) {
-        unsigned short value = nextRandom();
-
-        registers.setRegister(6, value);
-    }
-
-    if (instruction.service == 0x030) {
-        registers.setRegister(6, keyboardKey);
-    }
-
-    if (instruction.service == 0x040) {
         unsigned short frequency = registers.getRegister(6);
         unsigned short durationMs = registers.getRegister(7);
 
         requestTone(frequency, durationMs);
     }
 
-    if (instruction.service == 0x041) {
+    if (instruction.service == 0x021) {
         unsigned short newVolume = registers.getRegister(6);
 
         setVolumePercent(newVolume);
     }
 
-    if (instruction.service == 0x042) {
+    if (instruction.service == 0x022) {
         requestStopAudio();
     }
 
-    if (instruction.service == 0x050) {
+    if (instruction.service == 0x030) {
+        registers.setRegister(6, keyboardKey);
+        registers.setRegister(7, keyboardKey == ZX16_KEY_NONE ? 0 : 1);
+    }
+
+    if (instruction.service == 0x031) {
+        unsigned short seed = registers.getRegister(6);
+
+        seedRng(seed);
+    }
+
+    if (instruction.service == 0x032) {
+        unsigned short value = nextRandom();
+
+        registers.setRegister(6, value);
+    }
+
+    if (instruction.service == 0x040) {
         dumpRegisters();
     }
 
-    if (instruction.service == 0x051) {
+    if (instruction.service == 0x041) {
         unsigned short startAddress = registers.getRegister(6);
         unsigned short length = registers.getRegister(7);
 

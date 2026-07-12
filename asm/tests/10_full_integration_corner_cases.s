@@ -144,8 +144,8 @@ after_functions:
     li a0, 10
     ecall 0x001
     li16 a0, 0x1234
-    ecall 0x020
-    ecall 0x021
+    ecall 0x031
+    ecall 0x032
     li16 x3, 0x3830
     beq a0, x3, rng_ok
     li16 a0, service_bad

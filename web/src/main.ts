@@ -13,6 +13,8 @@ const breakpointText = document.getElementById("breakpointText") as HTMLElement;
 const disassemblyText = document.getElementById("disassemblyText") as HTMLElement;
 const consoleText = document.getElementById("consoleText") as HTMLElement;
 
+const loadBinButton = document.getElementById("loadBinButton") as HTMLButtonElement;
+const binFileInput = document.getElementById("binFileInput") as HTMLInputElement;
 const runButton = document.getElementById("runButton") as HTMLButtonElement;
 const speedButtons = document.getElementById("speedButtons") as HTMLElement;
 const slugButton = document.getElementById("slugButton") as HTMLButtonElement;
@@ -90,6 +92,7 @@ let getVolumePercent: any = null;
 let audioContext: any = null;
 let activeOscillator: any = null;
 let activeGain: any = null;
+let audioWaitUntil = 0;
 let audioStatus = "Audio ready";
 let running = false;
 let runToCursorActive = false;
@@ -102,6 +105,8 @@ let memoryEditActive = false;
 let memoryEditValue = "";
 let cursorAddress = -1;
 let loadedProgramName = "Demo";
+let loadedProgramBytes: any = null;
+let loadedProgramByteCount = 0;
 let screenImage: any = null;
 let drawFrameCount = 0;
 let snakeStepsPerFrame = wormStepsPerFrame;
@@ -262,13 +267,13 @@ function makeStripeTile(tileIndex: number, firstColor: number, secondColor: numb
 }
 
 function loadProgramBytes(bytes: any): boolean {
-    if (bytes.length === 0) {
+    const loadAddress = bytes.length === 65536 ? 0 : 0x0020;
+
+    if (bytes.length === 0 || loadAddress + bytes.length > 65536) {
         return false;
     }
 
     resetCpu();
-
-    const loadAddress = bytes.length === 65536 ? 0 : 0x0020;
 
     for (let i = 0; i < bytes.length; i++) {
         if (!write8(loadAddress + i, bytes[i])) {
@@ -341,31 +346,103 @@ function loadStaticVramDemo(): void {
     }
 }
 
-function loadSnakeProgram(): void {
-    if (typeof zx16Programs === "undefined" || !zx16Programs.snake) {
-        audioStatus = "Snake program was not found in web/build/programs.js.";
-        updateInternals();
-        return;
-    }
-
+function prepareForProgramLoad(): void {
     stopCurrentTone();
     running = false;
     runToCursorActive = false;
     frameNumber = 0;
     drawFrameCount = 0;
+    selectedSpeedName = "";
+    speedButtons.classList.add("hidden");
     resetDebugSelections();
+}
+
+function loadSnakeProgram(): boolean {
+    if (typeof zx16Programs === "undefined" || !zx16Programs.snake) {
+        audioStatus = "Snake program was not found in web/build/programs.js.";
+        updateInternals();
+        return false;
+    }
+
+    prepareForProgramLoad();
 
     if (!loadProgramBytes(zx16Programs.snake)) {
         audioStatus = "Could not load Snake program bytes.";
         drawPage();
-        return;
+        return false;
     }
 
     loadedProgramName = "Snake";
+    loadedProgramBytes = new Uint8Array(zx16Programs.snake);
+    loadedProgramByteCount = loadedProgramBytes.length;
     seedSnakeRng();
     clearKeyboardKey();
     audioStatus = "Snake loaded. Press Start, then use arrow keys.";
     drawPage();
+    return true;
+}
+
+function showBinLoadError(message: string): void {
+    audioStatus = message;
+
+    if (backend !== null) {
+        drawPage();
+    }
+    else {
+        consoleText.textContent = message;
+    }
+}
+
+async function loadSelectedBinFile(): Promise<void> {
+    const file = binFileInput.files && binFileInput.files.length > 0 ? binFileInput.files[0] : null;
+
+    if (file === null) {
+        return;
+    }
+
+    // File selection is a browser user gesture, so unlock WebAudio before
+    // awaiting the file read and potentially losing gesture activation.
+    prepareAudioFromUserEvent();
+
+    if (!file.name.toLowerCase().endsWith(".bin")) {
+        showBinLoadError("Please choose a .bin file.");
+        binFileInput.value = "";
+        return;
+    }
+
+    try {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const isValidSize = bytes.length === 65536 || (bytes.length > 0 && bytes.length <= 65536 - 0x0020);
+
+        if (!isValidSize) {
+            showBinLoadError("Could not load " + file.name + ": expected 1-65504 bytes, or a full 65536-byte memory image.");
+            binFileInput.value = "";
+            return;
+        }
+
+        prepareForProgramLoad();
+
+        if (!loadProgramBytes(bytes)) {
+            showBinLoadError("Could not load " + file.name + " into simulator memory.");
+            binFileInput.value = "";
+            return;
+        }
+
+        loadedProgramName = file.name;
+        loadedProgramBytes = new Uint8Array(bytes);
+        loadedProgramByteCount = bytes.length;
+        clearKeyboardKey();
+        audioStatus = "Loaded " + file.name + " (" + bytes.length + " bytes). Running in the console.";
+        internalsPanel.classList.remove("hidden");
+        internalsButton.textContent = "Hide Internals";
+        binFileInput.value = "";
+        startRunningFromButton();
+    }
+    catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        showBinLoadError("Could not read " + file.name + ": " + message);
+        binFileInput.value = "";
+    }
 }
 
 function drawVramScreen(): void {
@@ -519,6 +596,8 @@ function stopCurrentTone(): void {
         activeGain.disconnect();
         activeGain = null;
     }
+
+    audioWaitUntil = 0;
 }
 
 function playToneFromEcall(frequency: number, durationMs: number): void {
@@ -528,18 +607,25 @@ function playToneFromEcall(frequency: number, durationMs: number): void {
         return;
     }
 
-    if (frequency <= 0 || durationMs <= 0) {
+    if (durationMs <= 0) {
         return;
     }
 
     stopCurrentTone();
 
-    const oscillator = contextValue.createOscillator();
-    const gain = contextValue.createGain();
-    const volume = getVolumePercent === null ? 50 : getVolumePercent();
-    const safeVolume = Math.max(0, Math.min(volume, 100)) / 100;
     const startTime = contextValue.currentTime;
     const endTime = startTime + durationMs / 1000;
+    audioWaitUntil = endTime;
+
+    if (frequency === 0) {
+        audioStatus = "Rest for " + durationMs + " ms.";
+        return;
+    }
+
+    const oscillator = contextValue.createOscillator();
+    const gain = contextValue.createGain();
+    const volume = getVolumePercent === null ? 255 : getVolumePercent();
+    const safeVolume = Math.max(0, Math.min(volume, 255)) / 255;
 
     oscillator.type = "square";
     oscillator.frequency.setValueAtTime(frequency, startTime);
@@ -553,7 +639,7 @@ function playToneFromEcall(frequency: number, durationMs: number): void {
 
     activeOscillator = oscillator;
     activeGain = gain;
-    audioStatus = "Playing " + frequency + " Hz for " + durationMs + " ms at " + volume + "% volume.";
+    audioStatus = "Playing " + frequency + " Hz for " + durationMs + " ms at " + volume + "/255 volume.";
 
     oscillator.onended = (): void => {
         if (activeOscillator === oscillator) {
@@ -565,6 +651,19 @@ function playToneFromEcall(frequency: number, durationMs: number): void {
             activeGain = null;
         }
     };
+}
+
+function isAudioWaiting(): boolean {
+    if (audioWaitUntil <= 0 || audioContext === null) {
+        return false;
+    }
+
+    if (audioContext.currentTime < audioWaitUntil) {
+        return true;
+    }
+
+    audioWaitUntil = 0;
+    return false;
 }
 
 function processAudioRequests(): void {
@@ -971,6 +1070,9 @@ function renderConsole(keyCode: number): void {
     else if (loadedProgramName === "Snake") {
         text += "Snake loaded from asm/bin/snake.bin.\n";
     }
+    else if (loadedProgramName !== "Demo") {
+        text += loadedProgramName + " loaded (" + loadedProgramByteCount + " bytes).\n";
+    }
     else {
         text += "Static VRAM tile map rendered from WASM backend memory.\n";
     }
@@ -999,14 +1101,14 @@ function getSyscallDisplayName(service: number): string {
     if (service === 0x010) return "read_string";
     if (service === 0x011) return "read_int";
     if (service === 0x012) return "print_string";
-    if (service === 0x020) return "seed_rng";
-    if (service === 0x021) return "random";
+    if (service === 0x020) return "play_tone";
+    if (service === 0x021) return "set_volume";
+    if (service === 0x022) return "stop_audio";
     if (service === 0x030) return "keyboard";
-    if (service === 0x040) return "play_tone";
-    if (service === 0x041) return "set_volume";
-    if (service === 0x042) return "stop_audio";
-    if (service === 0x050) return "regs_dump";
-    if (service === 0x051) return "mem_dump";
+    if (service === 0x031) return "seed_rng";
+    if (service === 0x032) return "random";
+    if (service === 0x040) return "regs_dump";
+    if (service === 0x041) return "mem_dump";
     if (service === 0x3FF) return "halt";
 
     return "unknown_sys";
@@ -1175,6 +1277,7 @@ function refreshControls(): void {
     const programText = loadedProgramName + " ";
 
     runButton.disabled = running || halted;
+    loadBinButton.disabled = backend === null;
     internalRunButton.disabled = running || halted;
     pauseButton.disabled = !running;
     stepButton.disabled = running || halted;
@@ -1195,7 +1298,7 @@ function refreshControls(): void {
         statusText.textContent = programText + "RUN TO CURSOR";
     }
     else if (running) {
-        statusText.textContent = programText + selectedSpeedName + " RUNNING";
+        statusText.textContent = programText + (selectedSpeedName.length > 0 ? selectedSpeedName + " " : "") + "RUNNING";
     }
     else {
         statusText.textContent = programText + "PAUSED";
@@ -1231,6 +1334,10 @@ function runCpuSlice(): void {
         return;
     }
 
+    if (isAudioWaiting()) {
+        return;
+    }
+
     const stepsThisFrame = loadedProgramName === "Snake" ? snakeStepsPerFrame : debugStepsPerFrame;
 
     for (let i = 0; i < stepsThisFrame; i++) {
@@ -1249,6 +1356,10 @@ function runCpuSlice(): void {
         const executed = stepWithBreakpoints();
 
         processAudioRequests();
+
+        if (isAudioWaiting()) {
+            return;
+        }
 
         if (!executed) {
             running = false;
@@ -1309,6 +1420,7 @@ function setRunning(value: boolean): void {
 
     processAudioRequests();
     drawPage();
+    refreshControls();
 
     if (running) {
         scheduleRunLoop();
@@ -1442,12 +1554,52 @@ function restartSnakeFromButton(): void {
     showSpeedButtons();
 }
 
+function restartLoadedProgramFromButton(): void {
+    if (loadedProgramName === "Snake") {
+        restartSnakeFromButton();
+        return;
+    }
+
+    if (loadedProgramBytes === null) {
+        return;
+    }
+
+    prepareForProgramLoad();
+
+    if (!loadProgramBytes(loadedProgramBytes)) {
+        showBinLoadError("Could not restart " + loadedProgramName + ".");
+        return;
+    }
+
+    clearKeyboardKey();
+    audioStatus = loadedProgramName + " restarted. Press Start to run.";
+    drawPage();
+}
+
+loadBinButton.addEventListener("click", (): void => {
+    binFileInput.click();
+});
+
+binFileInput.addEventListener("change", (): void => {
+    loadSelectedBinFile();
+});
+
 runButton.addEventListener("click", (): void => {
-    showSpeedButtons();
+    if (loadedProgramName === "Snake") {
+        showSpeedButtons();
+    }
+    else {
+        startRunningFromButton();
+    }
 });
 
 internalRunButton.addEventListener("click", (): void => {
-    startSnakeWithSpeed("Worm", wormStepsPerFrame);
+    if (loadedProgramName === "Snake") {
+        startSnakeWithSpeed("Worm", wormStepsPerFrame);
+    }
+    else {
+        startRunningFromButton();
+    }
 });
 
 slugButton.addEventListener("click", (): void => {
@@ -1484,11 +1636,11 @@ runCursorButton.addEventListener("click", (): void => {
 });
 
 resetButton.addEventListener("click", (): void => {
-    restartSnakeFromButton();
+    restartLoadedProgramFromButton();
 });
 
 internalResetButton.addEventListener("click", (): void => {
-    restartSnakeFromButton();
+    restartLoadedProgramFromButton();
 });
 
 clearBreakpointsButton.addEventListener("click", (): void => {

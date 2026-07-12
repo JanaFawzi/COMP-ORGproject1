@@ -622,34 +622,34 @@ static const char* getSyscallDisplayName(unsigned short service) {
     }
 
     if (service == 0x020) {
-        return "seed_rng";
+        return "play_tone";
     }
 
     if (service == 0x021) {
-        return "random";
+        return "set_volume";
+    }
+
+    if (service == 0x022) {
+        return "stop_audio";
     }
 
     if (service == 0x030) {
         return "keyboard";
     }
 
+    if (service == 0x031) {
+        return "seed_rng";
+    }
+
+    if (service == 0x032) {
+        return "random";
+    }
+
     if (service == 0x040) {
-        return "play_tone";
-    }
-
-    if (service == 0x041) {
-        return "set_volume";
-    }
-
-    if (service == 0x042) {
-        return "stop_audio";
-    }
-
-    if (service == 0x050) {
         return "regs_dump";
     }
 
-    if (service == 0x051) {
+    if (service == 0x041) {
         return "mem_dump";
     }
 
@@ -1004,7 +1004,7 @@ void Gui::disassembleInstruction(unsigned short word, char text[], int textSize)
 
 void Gui::updateAudioFromCpu(CPU& cpu) {
     if (guiAudioReady) {
-        float volume = (float)cpu.getVolumePercent() / 100.0f;
+        float volume = (float)cpu.getVolumePercent() / 255.0f;
         SetMasterVolume(volume);
     }
 
@@ -1154,7 +1154,7 @@ void Gui::drawStatusPanel(
     sprintf(fpsText, "Target FPS: %d", getTargetFps());
     sprintf(frameTimeText, "Target frame: %.2f ms", getTargetFrameTimeMs());
     sprintf(keyText, "Keyboard key: %d", cpu.getKeyboardKey());
-    sprintf(volumeText, "Volume: %d%%", cpu.getVolumePercent());
+    sprintf(volumeText, "Volume: %d/255", cpu.getVolumePercent());
 
     if (cpu.isHalted()) {
         sprintf(stateText, "CPU state: HALTED");

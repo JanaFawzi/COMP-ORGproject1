@@ -230,7 +230,7 @@ async function main(): Promise<void> {
     reset();
     setReg(6, 440);
     setReg(7, 120);
-    loadWord(loadByte, 0x0020, makeSys(0x040));
+    loadWord(loadByte, 0x0020, makeSys(0x020));
     step();
 
     if (!hasPendingTone()) {
@@ -249,7 +249,7 @@ async function main(): Promise<void> {
 
     reset();
     setReg(6, 35);
-    loadWord(loadByte, 0x0020, makeSys(0x041));
+    loadWord(loadByte, 0x0020, makeSys(0x021));
     step();
 
     if (getVolumePercent() !== 35) {
@@ -259,8 +259,8 @@ async function main(): Promise<void> {
     reset();
     setReg(6, 330);
     setReg(7, 200);
-    loadWord(loadByte, 0x0020, makeSys(0x040));
-    loadWord(loadByte, 0x0022, makeSys(0x042));
+    loadWord(loadByte, 0x0020, makeSys(0x020));
+    loadWord(loadByte, 0x0022, makeSys(0x022));
     step();
     step();
 

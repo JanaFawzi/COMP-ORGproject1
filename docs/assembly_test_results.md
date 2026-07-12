@@ -115,8 +115,8 @@ Checks: RNG seed/random services, keyboard read, tone, volume, and stop-audio
 services.
 
 Expected: seed `0xACE1` produces `0xD30F`, `0xF1A5`, then `0x1734`; seed zero
-stays zero; unattended keyboard input returns no key; valid audio service calls
-complete.
+falls back to `0xACE1`; unattended keyboard input returns no key; valid audio
+service calls complete.
 
 Actual: PASS.
 

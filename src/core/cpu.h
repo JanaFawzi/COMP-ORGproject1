@@ -23,8 +23,8 @@ public:
     static constexpr unsigned short MAX_TONE_FREQUENCY = 20000;
     static constexpr unsigned short MAX_TONE_DURATION_MS = 5000;
 
-    static constexpr unsigned short DEFAULT_VOLUME_PERCENT = 100;
-    static constexpr unsigned short MAX_VOLUME_PERCENT = 100;
+    static constexpr unsigned short DEFAULT_VOLUME_PERCENT = 255;
+    static constexpr unsigned short MAX_VOLUME_PERCENT = 255;
 
     static constexpr unsigned short MAX_MEMORY_DUMP_BYTES = 64;
     static constexpr int STEP_OVER_MAX_INSTRUCTIONS = 1000;

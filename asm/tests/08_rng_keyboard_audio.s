@@ -9,19 +9,19 @@ start:
 
     # The default seed 0xACE1 must produce the documented xorshift sequence.
     li16 a0, 0xACE1
-    ecall 0x020
+    ecall 0x031
 
-    ecall 0x021
+    ecall 0x032
     li16 x3, 0xD30F
     beq a0, x3, rng_1_ok
     j rng_fail
 rng_1_ok:
-    ecall 0x021
+    ecall 0x032
     li16 x3, 0xF1A5
     beq a0, x3, rng_2_ok
     j rng_fail
 rng_2_ok:
-    ecall 0x021
+    ecall 0x032
     li16 x3, 0x1734
     beq a0, x3, rng_3_ok
     j rng_fail
@@ -29,11 +29,11 @@ rng_3_ok:
     li16 a0, rng_pass
     ecall 0x012
 
-    # A zero seed stays zero after random generation.
+    # A zero seed is forced back to the documented default seed.
     li a0, 0
-    ecall 0x020
-    ecall 0x021
-    li x3, 0
+    ecall 0x031
+    ecall 0x032
+    li16 x3, 0xD30F
     beq a0, x3, zero_seed_ok
     j rng_fail
 zero_seed_ok:
@@ -53,10 +53,10 @@ keyboard_ok:
     # requests; the C++ unit tests inspect the pending tone/volume/stop state.
     li16 a0, 440
     li16 a1, 250
-    ecall 0x040
+    ecall 0x020
     li a0, 50
-    ecall 0x041
-    ecall 0x042
+    ecall 0x021
+    ecall 0x022
     li16 a0, audio_pass
     ecall 0x012
 
