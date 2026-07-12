@@ -14,6 +14,7 @@ let audioStopped = false;
 let audioConnected = false;
 let audioVolume = 50;
 let rngSeed = 0xACE1;
+let lastAudioContext = null;
 
 function makeElement(id) {
     const element = {
@@ -21,6 +22,8 @@ function makeElement(id) {
         textContent: "",
         innerHTML: "",
         disabled: false,
+        files: [],
+        value: "",
         classList: {
             values: new Set(["hidden"]),
             add(name) {
@@ -43,6 +46,8 @@ function makeElement(id) {
         },
         addEventListener(name, callback) {
             this[name] = callback;
+        },
+        click() {
         }
     };
 
@@ -61,13 +66,14 @@ global.window = {
         windowEvents[name] = callback;
     },
     requestAnimationFrame(callback) {
-        this.lastAnimationFrame = callback;
+        global.lastAnimationFrame = callback;
         return 1;
     }
 };
 
 class MockAudioContext {
     constructor() {
+        lastAudioContext = this;
         this.currentTime = 1;
         this.destination = {};
         this.state = "suspended";
@@ -165,6 +171,8 @@ makeElement("memoryEditText");
 makeElement("breakpointText");
 makeElement("disassemblyText");
 makeElement("consoleText");
+makeElement("loadBinButton");
+makeElement("binFileInput");
 makeElement("runButton");
 makeElement("speedButtons");
 makeElement("slugButton");
@@ -410,7 +418,7 @@ global.createZx16Backend = async function () {
 
 require("./build/main.js");
 
-setTimeout(function () {
+setTimeout(async function () {
     if (drawCalls.length === 0) {
         throw new Error("Canvas was not drawn.");
     }
@@ -551,10 +559,28 @@ setTimeout(function () {
         throw new Error("Start did not show the speed buttons.");
     }
 
+    breakpoints.clear();
     elements.wormButton.click();
 
     if (pendingStopAudio) {
         throw new Error("Stop-audio request was not cleared.");
+    }
+
+    pendingTone = true;
+    windowEvents.keydown({ key: "ArrowUp", preventDefault() {} });
+
+    const pcBeforeAudioWait = pc;
+    global.lastAnimationFrame();
+
+    if (pc !== pcBeforeAudioWait) {
+        throw new Error("CPU continued executing before the current tone duration elapsed.");
+    }
+
+    lastAudioContext.currentTime = 2;
+    global.lastAnimationFrame();
+
+    if (pc === pcBeforeAudioWait) {
+        throw new Error("CPU did not resume after the current tone duration elapsed.");
     }
 
     windowEvents.keyup({
@@ -577,10 +603,38 @@ setTimeout(function () {
         throw new Error("Key release did not clear the simulator keyboard interface after pausing.");
     }
 
+    const professorBytes = new Uint8Array(65536);
+    professorBytes[0x0020] = 0x11;
+    professorBytes[0x0021] = 0x22;
+    professorBytes[0x0022] = 0x33;
+    professorBytes[0x0023] = 0x44;
+    elements.binFileInput.files = [{
+        name: "professor-test.bin",
+        async arrayBuffer() {
+            return professorBytes.buffer;
+        }
+    }];
+    await elements.binFileInput.change();
+
+    if (memory[0x0020] !== 0x11 || memory[0x0023] !== 0x44) {
+        throw new Error("Selected .bin file was not loaded at 0x0020.");
+    }
+
+    if (!elements.statusText.textContent.includes("professor-test.bin RUNNING")) {
+        throw new Error("Selected .bin file did not run automatically.");
+    }
+
+    if (!elements.consoleText.textContent.includes("professor-test.bin") ||
+        elements.internalsPanel.classList.contains("hidden")) {
+        throw new Error("Selected .bin file was not shown in the visible console.");
+    }
+
+    elements.pauseButton.click();
+
     elements.resetButton.click();
 
-    if (elements.speedButtons.classList.contains("hidden")) {
-        throw new Error("Restart did not show the speed buttons.");
+    if (memory[0x0020] !== 0x11 || !elements.statusText.textContent.includes("professor-test.bin PAUSED")) {
+        throw new Error("Restart did not reload the selected .bin file.");
     }
 
     elements.internalRunButton.click();
